@@ -16,7 +16,8 @@
     "e2e": "playwright test",
     "neo4j:start": "node scripts/scratch-neo4j.mjs",
     "neo4j:stop": "node scripts/scratch-neo4j.mjs --stop",
-    "neo4j:load": "node --env-file-if-exists=.env server/load-neo4j.ts"
+    "neo4j:load": "node --env-file-if-exists=.env server/load-neo4j.ts",
+    "live:simulate": "node scripts/simulate-live.ts"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "5.3.0",

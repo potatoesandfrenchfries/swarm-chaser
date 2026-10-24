@@ -12,6 +12,9 @@ export const EVENT_WORD: Record<EventType, string> = {
   check: 'Checks the facts',
   intervene: 'Steps in',
   correct: 'Corrects it',
+  submit: 'Asks the Judge',
+  allow: 'Lets it through',
+  divert: 'Sends it to the honeypot',
 };
 
 export const KIND_WORD = { agent: 'Agent', monitor: 'Judge', checker: 'Checker' } as const;
@@ -27,6 +30,9 @@ export const CHANNEL_WORD: Record<Channel, string> = {
   check: 'evidence check',
   intervene: 'monitor intervention',
   correct: 'correction',
+  submit: 'asks the Judge',
+  allow: 'let through to the sandbox',
+  divert: 'sent to the honeypot',
 };
 
 export const STATUS_WORD: Record<ClaimStatus, string> = {

@@ -16,7 +16,10 @@ export type Channel =
   | 'corrective-action' // an action that follows a correction or intervention
   | 'check'
   | 'intervene'
-  | 'correct';
+  | 'correct'
+  | 'submit' // an agent asks the Judge to carry out an action
+  | 'allow' // the Judge lets it through to the sandbox
+  | 'divert'; // the Judge sends it to the honeypot
 
 export interface NodeRef {
   kind: 'actor' | 'record';
@@ -51,9 +54,11 @@ export interface RecordState {
   /** Last effect written by an action, verbatim. Null until an action changes it. */
   state: string | null;
   changedBy: string | null;
-  lastChange: 'claim' | 'corrective' | 'other' | null;
+  lastChange: 'claim' | 'corrective' | 'other' | 'allowed' | 'diverted' | null;
   /** Verdicts reached against this record so far. */
   verdicts: { claim: string; verdict: Verdict; event: string }[];
+  /** Every effect written to it so far, oldest first (a sandbox collects many). */
+  effects: { event: string; text: string; change: NonNullable<RecordState['lastChange']> }[];
 }
 
 export interface ClaimState {
@@ -112,7 +117,18 @@ export function channelOf(e: ReplayEvent, byId: Map<string, ReplayEvent>): Chann
       return 'intervene';
     case 'correct':
       return 'correct';
+    case 'submit':
+      return 'submit';
+    case 'allow':
+      return 'allow';
+    case 'divert':
+      return 'divert';
   }
+}
+
+/** Events whose effect lands on a record: an agent's own action, or the Judge passing one on. */
+export function writesRecord(e: ReplayEvent): boolean {
+  return e.type === 'action' || e.type === 'allow' || e.type === 'divert';
 }
 
 export function clampCursor(run: Run, cursor: number): number {
@@ -130,7 +146,7 @@ export function deriveState(run: Run, cursorIn: number): ReplayState {
   const actors: Record<string, ActorState> = {};
   for (const a of run.actors) actors[a.id] = { exposed: [], said: [], acted: [], corrected: [], checked: [], lastEvent: null };
   const records: Record<string, RecordState> = {};
-  for (const r of run.records) records[r.id] = { touched: false, state: null, changedBy: null, lastChange: null, verdicts: [] };
+  for (const r of run.records) records[r.id] = { touched: false, state: null, changedBy: null, lastChange: null, verdicts: [], effects: [] };
   const claims: Record<string, ClaimState> = {};
   for (const c of run.claims) {
     claims[c.id] = { stated: false, status: 'unchecked', statusEvent: null, carriers: [], actions: [], interventions: [], corrections: [] };
@@ -154,7 +170,7 @@ export function deriveState(run: Run, cursorIn: number): ReplayState {
         if (targetActor) add(targetActor.exposed, e.claim);
       }
       if (e.type === 'read') add(actor.exposed, e.claim);
-      if (e.type === 'action' && !isCorrective(e, byId)) {
+      if ((e.type === 'action' && !isCorrective(e, byId)) || e.type === 'submit') {
         add(claim.actions, e.id);
         add(actor.acted, e.claim);
       }
@@ -174,15 +190,19 @@ export function deriveState(run: Run, cursorIn: number): ReplayState {
       }
     }
 
-    if (e.type === 'action' && targetRecord) {
+    if (writesRecord(e) && targetRecord) {
       targetRecord.state = e.effect;
       targetRecord.changedBy = e.id;
-      targetRecord.lastChange = isCorrective(e, byId) ? 'corrective' : e.claim ? 'claim' : 'other';
+      targetRecord.lastChange =
+        e.type === 'divert' ? 'diverted' : e.type === 'allow' ? 'allowed' : isCorrective(e, byId) ? 'corrective' : e.claim ? 'claim' : 'other';
+      if (e.effect !== null) targetRecord.effects.push({ event: e.id, text: e.effect, change: targetRecord.lastChange });
     }
 
     if (e.target) {
-      const from: NodeRef = { kind: 'actor', id: e.actor };
-      const to: NodeRef = { kind: e.target.kind, id: e.target.id };
+      // Lines follow the information: a read flows from what is read to the reader.
+      const actorRef: NodeRef = { kind: 'actor', id: e.actor };
+      const targetRef: NodeRef = { kind: e.target.kind, id: e.target.id };
+      const [from, to] = e.type === 'read' ? [targetRef, actorRef] : [actorRef, targetRef];
       const channel = channelOf(e, byId);
       const key = `${from.kind}:${from.id}>${to.kind}:${to.id}#${channel}`;
       const edge = edges.get(key) ?? { key, from, to, channel, events: [], lastSeq: -1 };
@@ -240,10 +260,13 @@ export function chaptersOf(run: Run, claimId: string | null): Chapter[] {
   const out: Chapter[] = [];
   const origin = claim ? byId.get(claim.origin) : undefined;
   if (origin) out.push({ seq: origin.seq, label: 'Claim first said', tone: 'claim' });
-  const act = about.find((e) => e.type === 'action' && !isCorrective(e, byId));
-  if (act) out.push({ seq: act.seq, label: 'First action', tone: 'action' });
+  // The first time someone acts on it: directly, or by asking the Judge to.
+  const act = about.find((e) => (e.type === 'action' && !isCorrective(e, byId)) || e.type === 'submit');
+  if (act) out.push({ seq: act.seq, label: act.type === 'submit' ? 'Tries to act on it' : 'First action', tone: 'action' });
   const check = about.find((e) => e.type === 'check' && e.verdict);
   if (check?.verdict) out.push({ seq: check.seq, label: `Checked: ${check.verdict}`, tone: check.verdict });
+  const trapped = about.find((e) => e.type === 'divert');
+  if (trapped) out.push({ seq: trapped.seq, label: 'Sent to the honeypot', tone: 'contradicted' });
   // An intervention and the correction it prompts read as one moment: the first of either.
   const fix = about.find((e) => e.type === 'intervene' || e.type === 'correct');
   if (fix) out.push({ seq: fix.seq, label: fix.type === 'intervene' ? `${run.actors.find((a) => a.id === fix.actor)?.name ?? 'Judge'} steps in` : 'First correction', tone: fix.type === 'intervene' ? 'intervene' : 'correct' });

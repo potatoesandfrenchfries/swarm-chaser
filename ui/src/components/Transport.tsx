@@ -142,12 +142,17 @@ export function Transport({ run, focusClaim }: { run: Run; focusClaim: string | 
         )}
       </div>
 
+      {state.live && !state.live.follow && (
+        <button type="button" className="chip-btn dock-now" onClick={() => dispatch({ type: 'live-follow' })}>
+          Jump to now
+        </button>
+      )}
       <div className="dock-count" aria-live="off">
         <span className="dock-step">
           <b>{state.cursor + 1}</b>
           <span>/ {n}</span>
         </span>
-        <span className="dock-state">{state.playing ? 'Playing' : state.cursor >= last ? 'The end' : 'Paused'}</span>
+        <span className="dock-state">{state.live ? (state.live.follow ? 'Following live' : 'Behind live') : state.playing ? 'Playing' : state.cursor >= last ? 'The end' : 'Paused'}</span>
       </div>
     </section>
   );

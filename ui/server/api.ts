@@ -1,6 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getBundle, loadAll } from './bundles.ts';
+import { listLive, parseLive, streamLive, LIVE_DIR } from './live.ts';
 import { configured, readRun, status, type Neo4jEnv } from './neo4j.ts';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 type Next = (err?: unknown) => void;
 
@@ -10,6 +13,9 @@ type Next = (err?: unknown) => void;
  *   GET /api/bundles/:id                  one valid bundle
  *   GET /api/neo4j/status                 not-configured | unreachable | connected (+ loaded runs)
  *   GET /api/neo4j/runs/:bundle/:run      a run's projection as stored in Neo4j
+ *   GET /api/live                         live runs streaming into local/live/
+ *   GET /api/live/:id                     one live run as it stands now
+ *   GET /api/live/:id/stream              Server-Sent Events: snapshot, then each new step
  */
 export function apiMiddleware(env: Neo4jEnv) {
   return async (req: IncomingMessage, res: ServerResponse, next: Next) => {
@@ -29,6 +35,17 @@ export function apiMiddleware(env: Neo4jEnv) {
       if (parts[1] === 'bundles' && parts.length === 3) {
         const b = getBundle(parts[2]);
         return b ? send(200, b) : send(404, { error: `No valid bundle with id ${parts[2]}.` });
+      }
+      if (parts[1] === 'live' && parts.length === 2) return send(200, listLive());
+      if (parts[1] === 'live' && parts.length === 4 && parts[3] === 'stream') {
+        if (!streamLive(parts[2], res, env)) return send(404, { error: 'No live run with that name.' });
+        return;
+      }
+      if (parts[1] === 'live' && parts.length === 3) {
+        const file = join(LIVE_DIR, `${parts[2]}.jsonl`);
+        if (!/^[A-Za-z0-9._-]{1,80}$/.test(parts[2]) || !existsSync(file)) return send(404, { error: 'No live run with that name.' });
+        const p = parseLive(readFileSync(file, 'utf8'), parts[2]);
+        return p.bundle ? send(200, { bundle: p.bundle, problems: p.problems }) : send(422, { error: 'The live file has no valid header yet.', problems: p.problems });
       }
       if (parts[1] === 'neo4j' && parts[2] === 'status') return send(200, await status(env));
       if (parts[1] === 'neo4j' && parts[2] === 'runs' && parts.length === 5) {

@@ -26,7 +26,10 @@ export type EventType =
   | 'action' // an actor changes a record or the outside world (tool call with an effect)
   | 'check' // an actor or checker tests a claim against a record
   | 'intervene' // a monitor posts to an actor about a claim
-  | 'correct'; // an actor states a claim was wrong and gives the replacement
+  | 'correct' // an actor states a claim was wrong and gives the replacement
+  | 'submit' // an agent hands a proposed action to the Judge instead of doing it directly
+  | 'allow' // the Judge lets a submitted action through to the sandbox
+  | 'divert'; // the Judge routes a suspicious action to the honeypot instead
 
 export type Verdict = 'supported' | 'contradicted' | 'unverifiable';
 export type ClaimStatus = Verdict | 'unchecked';
@@ -53,7 +56,8 @@ export interface Actor {
 export interface RecordNode {
   id: string;
   label: string;
-  kind: 'document' | 'sheet' | 'listing' | 'post' | 'message' | 'tool';
+  /** sandbox: where allowed actions take effect. honeypot: a decoy that captures diverted actions. */
+  kind: 'document' | 'sheet' | 'listing' | 'post' | 'message' | 'tool' | 'sandbox' | 'honeypot';
   /** True when the experiment put this record there on purpose. */
   planted: boolean;
   /** Verbatim content when the bundle carries it; null when only a pointer is known. */

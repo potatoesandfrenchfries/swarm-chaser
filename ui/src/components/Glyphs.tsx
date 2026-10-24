@@ -96,6 +96,24 @@ export function EventMark({ type, verdict, size = 12, faint = false }: { type: E
           <path d={`M${s * 0.15} ${s * 0.82}L${h} ${s * 0.2}L${s * 0.85} ${s * 0.82}`} fill="none" stroke="var(--correction)" strokeWidth="1.8" strokeDasharray="3 1.5" />
         </svg>
       );
+    case 'submit':
+      return (
+        <svg {...common}>
+          <path d={`M${h} ${s * 0.12}L${s * 0.88} ${s * 0.82}H${s * 0.12}Z`} fill="var(--ink)" />
+        </svg>
+      );
+    case 'allow':
+      return (
+        <svg {...common}>
+          <rect x={s * 0.14} y={s * 0.14} width={s * 0.72} height={s * 0.72} rx="1.5" fill="var(--supported)" />
+        </svg>
+      );
+    case 'divert':
+      return (
+        <svg {...common}>
+          <rect x={s * 0.14} y={s * 0.14} width={s * 0.72} height={s * 0.72} rx="1.5" fill="var(--contradicted)" />
+        </svg>
+      );
     case 'correct':
     case 'dispute':
       return (

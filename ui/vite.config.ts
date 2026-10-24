@@ -22,6 +22,6 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), api(env)],
     build: { target: 'es2022', chunkSizeWarningLimit: 900 },
     // Unit tests only; e2e/ belongs to Playwright.
-    test: { include: ['src/**/*.test.ts'] },
+    test: { include: ['src/**/*.test.ts', 'server/**/*.test.ts'] },
   };
 });

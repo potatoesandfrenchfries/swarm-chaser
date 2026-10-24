@@ -3,6 +3,7 @@ import syntheticBundle from '../data/synthetic/merch-launch.json';
 import { TopBar } from './components/TopBar.tsx';
 import type { Bundle } from './model/types.ts';
 import { usePlayback } from './state/hooks.ts';
+import { useLiveConnection } from './state/live.ts';
 import { currentRun, useStore } from './state/store.tsx';
 import { CompareView } from './views/CompareView.tsx';
 import { HomeView } from './views/HomeView.tsx';
@@ -13,6 +14,7 @@ const ExplorerView = lazy(() => import('./views/ExplorerView.tsx'));
 export function App() {
   const { state, dispatch } = useStore();
   usePlayback();
+  useLiveConnection();
   const run = currentRun(state);
   const bundle = state.bundle;
   const viewRef = state.view;

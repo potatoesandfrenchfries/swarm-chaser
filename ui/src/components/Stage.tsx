@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { curveBetween, layoutRun, pointOn, recordWidth, type Box, type Curve, type Placed } from '../lib/layout.ts';
-import { monogram, vendorOf } from '../lib/words.ts';
+import { HUB_SEAT, curveBetween, layoutRun, pointOn, recordWidth, type Box, type Curve, type Placed } from '../lib/layout.ts';
+import { EVENT_WORD, monogram, vendorOf } from '../lib/words.ts';
 import { channelOf, deriveState, type ActorState, type Channel, type EdgeState, type ReplayState } from '../model/replay.ts';
 import type { Run } from '../model/types.ts';
 import type { Selection } from '../state/store.tsx';
@@ -32,6 +32,22 @@ interface StageProps {
 }
 
 const ARRIVAL = 0.82;
+
+const MARKER: Record<Channel, string | undefined> = {
+  claim: 'url(#arrow-claim)',
+  'claim-action': 'url(#arrow-claim)',
+  correct: 'url(#arrow-blue)',
+  intervene: 'url(#arrow-blue)',
+  'corrective-action': 'url(#arrow-blue)',
+  dispute: 'url(#arrow-blue)',
+  check: undefined,
+  submit: 'url(#arrow-ink)',
+  allow: 'url(#arrow-green)',
+  divert: 'url(#arrow-red)',
+  read: 'url(#arrow-faint)',
+  task: 'url(#arrow-faint)',
+  action: 'url(#arrow-faint)',
+};
 const DASHED = new Set<Channel>(['check', 'intervene', 'dispute']);
 
 const PULSE_COLOR: Partial<Record<Channel, string>> = {
@@ -41,6 +57,8 @@ const PULSE_COLOR: Partial<Record<Channel, string>> = {
   correct: 'var(--correction)',
   dispute: 'var(--correction)',
   'corrective-action': 'var(--correction)',
+  allow: 'var(--supported)',
+  divert: 'var(--contradicted)',
 };
 
 export function Stage({ run, state, transition, selection, onSelect, insets, compact = false, reduced, speed = 1, focusClaim = null, animated = true }: StageProps) {
@@ -65,8 +83,10 @@ export function Stage({ run, state, transition, selection, onSelect, insets, com
 
   const currentCurve: (Curve & { channel: Channel }) | null = useMemo(() => {
     if (!current?.target) return null;
-    const a = placed.get(current.actor);
-    const b = placed.get(current.target.id);
+    // Reads travel from what is read to the reader, like every other line.
+    const [fromId, toId] = current.type === 'read' ? [current.target.id, current.actor] : [current.actor, current.target.id];
+    const a = placed.get(fromId);
+    const b = placed.get(toId);
     if (!a || !b) return null;
     const channel = channelOf(current, byId);
     return { ...curveBetween(a, b, channel, center), channel };
@@ -86,9 +106,9 @@ export function Stage({ run, state, transition, selection, onSelect, insets, com
       {size.width > 0 && (
         <svg className="stage-svg" width={size.width} height={size.height} aria-hidden="true">
           <defs>
-            {(['claim', 'ink', 'faint', 'blue'] as const).map((c) => (
+            {(['claim', 'ink', 'faint', 'blue', 'green', 'red'] as const).map((c) => (
               <marker key={c} id={`arrow-${c}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="13" markerHeight="13" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
-                <path d="M1 1L8 5L1 9" fill="none" stroke={c === 'claim' ? 'var(--claim)' : c === 'blue' ? 'var(--correction)' : c === 'ink' ? 'var(--ink)' : 'var(--ink-faint)'} strokeWidth={c === 'claim' ? 2.2 : 1.6} strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M1 1L8 5L1 9" fill="none" stroke={c === 'claim' ? 'var(--claim)' : c === 'blue' ? 'var(--correction)' : c === 'ink' ? 'var(--ink)' : c === 'green' ? 'var(--supported)' : c === 'red' ? 'var(--contradicted)' : 'var(--ink-faint)'} strokeWidth={c === 'claim' ? 2.2 : 1.6} strokeLinecap="round" strokeLinejoin="round" />
               </marker>
             ))}
           </defs>
@@ -163,10 +183,59 @@ export function Stage({ run, state, transition, selection, onSelect, insets, com
               </button>
             );
           })}
+          {placed.get(HUB_SEAT) && (
+            <div className="hub-seat" style={{ left: placed.get(HUB_SEAT)!.x, top: placed.get(HUB_SEAT)!.y }} aria-label="No Judge in this version">
+              <span>No Judge</span>
+            </div>
+          )}
+          {currentCurve && current && (
+            <span
+              key={`label-${transition.nonce}`}
+              className={`edge-label edge-label--${currentCurve.channel}`}
+              style={{ left: pointOn(currentCurve, 0.5).x, top: pointOn(currentCurve, 0.5).y }}
+              aria-hidden="true"
+            >
+              {EVENT_WORD[current.type]}
+            </span>
+          )}
           {run.records.map((rec) => {
             const pl = placed.get(rec.id);
             if (!pl) return null;
             const rs = shown.records[rec.id];
+            if (rec.kind === 'sandbox' || rec.kind === 'honeypot') {
+              const isCurrent = current?.target?.kind === 'record' && current.target.id === rec.id;
+              const latest = rs.effects.slice(-2);
+              return (
+                <button
+                  key={rec.id}
+                  type="button"
+                  className={`gate gate--${rec.kind} ${rs.effects.length ? 'is-filled' : ''} ${isCurrent ? 'is-current' : ''} ${selection?.kind === 'record' && selection.id === rec.id ? 'is-selected' : ''}`}
+                  style={{ left: pl.x, top: pl.y }}
+                  onClick={() => onSelect({ kind: 'record', id: rec.id })}
+                  aria-pressed={selection?.kind === 'record' && selection.id === rec.id}
+                  aria-label={`${rec.label}. ${rs.effects.length ? rs.effects.map((x) => x.text).join('. ') : 'Nothing yet.'}`}
+                >
+                  <span className="gate-head">
+                    {rec.kind === 'sandbox' ? <SandboxIcon /> : <HoneypotIcon />}
+                    {rec.label}
+                    {!compact && <small>{rec.kind === 'sandbox' ? 'where actions happen' : 'safe trap'}</small>}
+                  </span>
+                  {!compact && (
+                    <span className="gate-effects">
+                      {latest.length === 0 ? (
+                        <em>Nothing yet</em>
+                      ) : (
+                        latest.map((x) => (
+                          <span key={x.event} className={`gate-effect gate-effect--${x.change}`}>
+                            {x.text}
+                          </span>
+                        ))
+                      )}
+                    </span>
+                  )}
+                </button>
+              );
+            }
             const verdict = rs.verdicts.at(-1)?.verdict ?? null;
             const isCurrent = current?.target?.kind === 'record' && current.target.id === rec.id;
             const preview = rs.state ?? (rec.content ? rec.content.split('\n').at(-1) : null);
@@ -204,14 +273,7 @@ export function Stage({ run, state, transition, selection, onSelect, insets, com
 function EdgePath({ edge, curve, age, focusClaim, run }: { edge: EdgeState; curve: Curve; age: number; focusClaim: string | null; run: Run }) {
   // Older trails recede so the latest movement reads first; nothing disappears.
   const fade = Math.max(0.38, 1 - age * 0.07);
-  const marker =
-    edge.channel === 'claim' || edge.channel === 'claim-action'
-      ? 'url(#arrow-claim)'
-      : edge.channel === 'correct' || edge.channel === 'intervene' || edge.channel === 'corrective-action' || edge.channel === 'dispute'
-        ? 'url(#arrow-blue)'
-        : edge.channel === 'check'
-          ? undefined
-          : 'url(#arrow-faint)';
+  const marker = MARKER[edge.channel];
   const offFocus = focusClaim && edge.channel === 'claim' && !edge.events.some((id) => run.events.find((e) => e.id === id)?.claim === focusClaim);
   return (
     <g className={`edge-group ${offFocus ? 'is-off-focus' : ''}`} style={{ opacity: fade }}>
@@ -276,6 +338,24 @@ function JudgeIcon() {
     <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 4v16M8 20h8M5 7h14M12 4l-1.2 3M12 4l1.2 3" />
       <path d="M5 7l-2.6 6a2.6 2.6 0 0 0 5.2 0L5 7zM19 7l-2.6 6a2.6 2.6 0 0 0 5.2 0L19 7z" />
+    </svg>
+  );
+}
+
+function SandboxIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+      <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
+      <path d="M3 8l9 5 9-5M12 13v8" />
+    </svg>
+  );
+}
+
+function HoneypotIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
+      <path d="M7 4h10M8 4v3c-2.5 1.5-4 4-4 7 0 4 3.6 6 8 6s8-2 8-6c0-3-1.5-5.5-4-7V4" />
+      <path d="M8 12c1.5 1 6.5 1 8 0" />
     </svg>
   );
 }

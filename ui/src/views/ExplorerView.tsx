@@ -23,14 +23,17 @@ const REL_WORD: Record<RelType, string> = {
 };
 
 /** Neo4j when it is connected and holds this run; otherwise the same projection computed from the bundle, labelled as such. */
-function useGraphSource(bundle: Bundle, run: Run, retry: number) {
+function useGraphSource(bundle: Bundle, run: Run, retry: number, liveTick: number) {
   const local = useMemo(() => projectRun(bundle, run), [bundle, run]);
   const [source, setSource] = useState<Source>({ kind: 'checking' });
   const [remote, setRemote] = useState<Projection | null>(null);
+  // A different run starts from scratch; a live refresh keeps what is on screen until the new read lands.
   useEffect(() => {
-    const ctrl = new AbortController();
     setSource({ kind: 'checking' });
     setRemote(null);
+  }, [bundle.id, run.id]);
+  useEffect(() => {
+    const ctrl = new AbortController();
     (async () => {
       try {
         const st = await (await fetch('/api/neo4j/status', { signal: ctrl.signal })).json();
@@ -50,14 +53,21 @@ function useGraphSource(bundle: Bundle, run: Run, retry: number) {
       }
     })();
     return () => ctrl.abort();
-  }, [bundle.id, run.id, retry, local]);
+  }, [bundle.id, run.id, retry, local, liveTick]);
   return { source, projection: remote ?? local };
 }
 
 export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run }) {
   const { state, dispatch } = useStore();
   const [retry, setRetry] = useState(0);
-  const { source, projection } = useGraphSource(bundle, run, retry);
+  // While a run is live, re-read the database copy every few seconds so the graph keeps up.
+  const [liveTick, setLiveTick] = useState(0);
+  useEffect(() => {
+    if (!state.live) return;
+    const t = window.setInterval(() => setLiveTick((n) => n + 1), 3500);
+    return () => window.clearInterval(t);
+  }, [state.live]);
+  const { source, projection } = useGraphSource(bundle, run, retry, liveTick);
   const [types, setTypes] = useState<Set<RelType>>(() => new Set(REL_TYPES.filter((t) => t !== 'FIRST_STATED_IN')));
   const [uptoCursor, setUptoCursor] = useState(true);
   const [search, setSearch] = useState('');
