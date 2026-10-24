@@ -11,6 +11,7 @@ from eval.validation import (
     agreement_report,
     cohen_kappa,
     finding_date_range,
+    kappa_interval,
     known_failure_recall,
     load_seed_findings,
     locate_findings,
@@ -247,3 +248,22 @@ def test_perturbation_test_splits_the_caught_share_by_kind_of_change():
     no_agreement = {"n_paired": 0, "agreement": float("nan"), "kappa": None, "unreliable": False}
     row = validation_table(result, no_agreement, known_failure_recall([], set()), {"n_read": 0, "note": ""}, perturbation_by_kind=by_kind)[0]
     assert row["note"].endswith("; caught: numbers 1/1, dates 0/1, names 0/1")
+
+
+def test_kappa_interval_brackets_kappa_and_is_the_same_every_run():
+    a = ["supported"] * 30 + ["contradicted"] * 20 + ["unverifiable"] * 10
+    b = ["supported"] * 25 + ["contradicted"] * 5 + ["contradicted"] * 18 + ["supported"] * 2 + ["unverifiable"] * 10
+    low, high = kappa_interval(a, b)
+    assert low < cohen_kappa(a, b) < high
+    assert kappa_interval(a, b) == (low, high)
+    assert kappa_interval([], []) == (None, None)
+    assert kappa_interval(["supported", "contradicted"] * 10, ["supported", "contradicted"] * 10) == (1.0, 1.0)
+
+
+def test_validation_table_shows_kappa_with_its_interval():
+    a = [Verdict(f"c{i}", v, [], "j1", 0.9) for i, v in enumerate(["supported", "contradicted"] * 20)]
+    b = [Verdict(f"c{i}", v, [], "j2", 0.9) for i, v in enumerate(["supported", "contradicted"] * 19 + ["contradicted", "contradicted"])]
+    report = agreement_report(a, b)
+    row = validation_table(perturbation_test([], lambda c: "supported"), report, known_failure_recall([], set()), {"n_read": 0, "note": ""})[1]
+    assert row["value"] == f"{report['kappa']:.2f} ({report['kappa_low']:.2f}-{report['kappa_high']:.2f})"
+    assert report["kappa_low"] < report["kappa"] <= report["kappa_high"]
