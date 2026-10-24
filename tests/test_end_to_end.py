@@ -11,7 +11,6 @@ what lets the MVP's success criteria be asserted exactly.
 """
 
 import re
-from dataclasses import replace
 
 import pytest
 
@@ -95,7 +94,6 @@ def run_pipeline(messages_path, memories_path, lookup):
     messages, memories = load_messages(messages_path, lookup), load_memories(memories_path, lookup)
     join = join_report(messages, memories)
     rows = episode_rows(messages, memories, "e1")
-    model_of = {r["agent"]: r["model"] for r in rows}
     chunks = chunk_rows(rows)
 
     claims = {"e1": [], "e2": []}
@@ -104,10 +102,7 @@ def run_pipeline(messages_path, memories_path, lookup):
         for chunk in chunks:
             kept, drop = parse_claims(extract("prompt", chunk["text"]), chunk, extractor=variant)
             dropped += drop
-            for c in kept:
-                # The step parse_claims marks CUSTOMISE: find the row the quote came from.
-                source = next(r for r in rows if c.quote in r["text"])
-                claims[variant].append(replace(c, ts=source["ts"], model=model_of[c.agent], source=source["source"]))
+            claims[variant] += kept
 
     verdicts = {}
     for vendor, call in (("vendor-a", make_vendor()), ("vendor-b", make_vendor(sloppy=True))):
