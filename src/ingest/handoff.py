@@ -56,7 +56,7 @@ def connect_sample(path: str | Path) -> sqlite3.Connection:
     db.execute("CREATE TABLE IF NOT EXISTS room_members (room_id TEXT NOT NULL, agent TEXT NOT NULL, PRIMARY KEY (room_id, agent))")
     db.execute(
         "CREATE TABLE IF NOT EXISTS room_timeline (agent TEXT NOT NULL, ts TEXT NOT NULL, room_id TEXT NOT NULL, "
-        "source TEXT NOT NULL CHECK (source IN ('start', 'chat')), PRIMARY KEY (agent, ts))"
+        "source TEXT NOT NULL CHECK (source IN ('start', 'chat')), PRIMARY KEY (agent, ts, room_id))"
     )
     db.execute(
         "CREATE TABLE IF NOT EXISTS spread_edges (claim_id TEXT NOT NULL, later_message_id TEXT NOT NULL, relation TEXT NOT NULL, agent TEXT NOT NULL, "
@@ -83,14 +83,18 @@ def write_claims(db: sqlite3.Connection, claims: list[Claim]) -> dict:
     return {"claims": len(out), "episode_repaired": repaired, "row_missing": orphans}
 
 
-def write_verdicts(db: sqlite3.Connection, verdicts: list[Verdict]) -> int:
-    """Insert verdicts; a claim judged twice by one vendor keeps the later one."""
+def write_verdicts(db: sqlite3.Connection, verdicts: list[Verdict]) -> dict:
+    """Insert verdicts. A claim judged twice by one vendor keeps its first verdict, as `eval.validation.agreement_report`
+    does, and the repeats are counted rather than lost. Only that conflict is skipped: an unknown verdict word still fails.
+    """
+    before = db.total_changes
     db.executemany(
-        "INSERT OR REPLACE INTO verdicts VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO verdicts VALUES (?, ?, ?, ?, ?) ON CONFLICT (claim_id, judge) DO NOTHING",
         [(v.claim_id, v.judge, v.verdict, v.confidence, json.dumps(v.evidence, ensure_ascii=False)) for v in verdicts],
     )
     db.commit()
-    return len(verdicts)
+    stored = db.total_changes - before
+    return {"verdicts": stored, "verdicts_repeated": len(verdicts) - stored}
 
 
 def write_edges(db: sqlite3.Connection, edges: list[SpreadEdge], linker: str) -> int:
@@ -141,7 +145,7 @@ def read_verdicts(db: sqlite3.Connection) -> list[Verdict]:
 
 def read_room_timelines(db: sqlite3.Connection) -> dict[str, list[tuple[str, str]]]:
     out: dict[str, list[tuple[str, str]]] = {}
-    for agent, ts, room in db.execute("SELECT agent, ts, room_id FROM room_timeline ORDER BY agent, ts"):
+    for agent, ts, room in db.execute("SELECT agent, ts, room_id FROM room_timeline ORDER BY agent, ts, room_id"):
         out.setdefault(agent, []).append((ts, room))
     return out
 
@@ -230,7 +234,7 @@ def build_sample(slice_db: str | Path, out: str | Path, claims: list[Claim], ver
     rows = read_rows(connect(slice_db))
     db = connect_sample(out)
     write_rows(db, rows)
-    report = {"rows": len(rows), **write_claims(db, claims), "verdicts": write_verdicts(db, verdicts)}
+    report = {"rows": len(rows), **write_claims(db, claims), **write_verdicts(db, verdicts)}
     data = read_room_data(export_dir, max(r["ts"] for r in rows))
     write_room_data(db, data)
     report["rooms"] = data["report"]

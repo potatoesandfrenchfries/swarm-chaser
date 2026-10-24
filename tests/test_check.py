@@ -264,3 +264,16 @@ def test_the_checker_prompt_is_frozen_in_the_shipped_config():
     registry = load_registry()
     assert "check.checker:CHECKER_PROMPT" in registry
     assert mismatches(registry) == []
+
+
+def test_a_claim_time_with_no_zone_is_read_as_utc_in_any_local_zone(monkeypatch):
+    import time
+
+    monkeypatch.setenv("TZ", "Pacific/Kiritimati")  # UTC+14, so reading the time as local shifts it by 14 hours
+    time.tzset()
+    try:
+        row = {"id": "r1", "episode_id": "e1", "agent": "a", "ts": "2025-05-01T23:00:00Z", "source": "chat", "text": "done"}
+        assert [r["id"] for r in evidence_window([row], "2025-05-01T00:00:00", "a")] == ["r1"]  # 23 hours after, inside 24
+    finally:
+        monkeypatch.delenv("TZ")
+        time.tzset()

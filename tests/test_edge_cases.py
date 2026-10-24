@@ -13,7 +13,7 @@ from conftest import MEMORIES, MESSAGES, chat, memory, write_jsonl
 from eval.forecaster import Prediction, accuracy, auc, brier_score, score_forecaster
 from eval.validation import KAPPA_UNRELIABLE_BELOW, agreement_report, cohen_kappa, known_failure_recall, perturbation_test
 from extract.claims import Claim, chunk_rows, parse_claims
-from ingest.village import JOIN_TOLERANCE_SECONDS, _parse_ts, episode_rows, join_report, load_jsonl, load_memories, load_messages, normalise_ts
+from ingest.village import JOIN_TOLERANCE_SECONDS, episode_rows, join_report, load_jsonl, load_memories, load_messages, normalise_ts, parse_ts
 from lab.arms import ARMS, LabRun, acting_rate, handling_result, validate_run
 from report.headline import breakdown, headline, month, sensitivity, shares, wilson
 from report.page import LIMITS_NOTE, build_page, section_3_spread, section_4_validation, section_5_decision_curve, section_6_sandbox, write_page
@@ -69,7 +69,7 @@ def test_naive_timestamps_are_utc_not_the_machines_local_time(monkeypatch):
     time.tzset()
     try:
         assert normalise_ts("2025-05-01 00:00:00") == "2025-05-01T00:00:00.000000Z"
-        assert _parse_ts("2025-05-01 00:00:00") == _parse_ts("2025-05-01T00:00:00Z")
+        assert parse_ts("2025-05-01 00:00:00") == parse_ts("2025-05-01T00:00:00Z")
         assert normalise_ts("2025-05-01T10:00:00+01:00") == "2025-05-01T09:00:00.000000Z"
     finally:
         monkeypatch.undo()

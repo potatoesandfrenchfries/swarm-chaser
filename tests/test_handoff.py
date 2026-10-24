@@ -21,6 +21,7 @@ from ingest.handoff import (
     read_room_timelines,
     read_verdicts,
     write_claims,
+    write_room_data,
     write_verdicts,
 )
 from ingest.store import build_slice, read_rows
@@ -165,3 +166,16 @@ def test_the_baseline_does_not_look_outside_the_claims_episode_or_back_in_time(t
     early = claim("e1#0-e1-0", "m5", agent="dave", ts="2025-05-01T13:00:00.000000Z", quote="The nightly build passed with 12 tests green")  # m3 is before it; m12 is in e2
     build_sample(tmp_path / "s.sqlite", tmp_path / "out.sqlite", [early], [], export)
     assert read_edges(sqlite3.connect(tmp_path / "out.sqlite"), "baseline") == []
+
+
+def test_a_claim_judged_twice_by_one_vendor_keeps_its_first_verdict_and_the_repeat_is_counted(sample):
+    db, _ = sample
+    report = write_verdicts(db, [Verdict("e1#0-e1-0", "supported", [], "a", 0.1), Verdict("e1#1-e1-0", "supported", [], "a", 0.7)])
+    assert report == {"verdicts": 1, "verdicts_repeated": 1}
+    assert [(v.claim_id, v.verdict) for v in read_verdicts(db) if v.judge == "a"] == [("e1#0-e1-0", "contradicted"), ("e1#1-e1-0", "supported")]
+
+
+def test_two_rooms_at_the_same_instant_are_both_kept_in_the_timeline():
+    db = connect_sample(":memory:")
+    write_room_data(db, {"rooms": [], "members": {}, "timeline": {"alice": [("2026-03-01T00:00:00.000000Z", "room1", "chat"), ("2026-03-01T00:00:00.000000Z", "room2", "chat")]}})
+    assert read_room_timelines(db) == {"alice": [("2026-03-01T00:00:00.000000Z", "room1"), ("2026-03-01T00:00:00.000000Z", "room2")]}
