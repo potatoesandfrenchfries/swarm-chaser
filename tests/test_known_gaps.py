@@ -52,28 +52,24 @@ def test_an_extracted_claim_can_be_fed_straight_to_the_checker():
 # --- check: evidence must be real, and a bad reply must not take the batch down ----------------
 
 
-@pytest.mark.xfail(strict=True, reason="'' in text is True, so [''] passes the substring check and the verdict stands with no evidence")
 def test_an_empty_string_is_not_evidence():
     reply = {"verdict": "contradicted", "evidence": [""], "confidence": 0.9}
     v = check_claim(claim(), window(), lambda p, t: reply, "j")
     assert v.evidence == [] and v.verdict == "unverifiable"
 
 
-@pytest.mark.xfail(strict=True, reason="a bare string is iterated character by character, so single letters pass as 'quotes'")
 def test_evidence_given_as_one_string_is_not_split_into_characters():
     reply = {"verdict": "contradicted", "evidence": "relevant", "confidence": 0.9}
     v = check_claim(claim(), window(), lambda p, t: reply, "j")
     assert all(len(q) > 1 for q in v.evidence)
 
 
-@pytest.mark.xfail(strict=True, raises=(ValueError, TypeError), reason="float('high') raises ValueError; one malformed model reply aborts the whole run")
 @pytest.mark.parametrize("confidence", ["high", None, "0.9 (fairly sure)"])
 def test_a_non_numeric_confidence_does_not_crash(confidence):
     reply = {"verdict": "supported", "evidence": [], "confidence": confidence}
     assert check_claim(claim(), window(), lambda p, t: reply, "j").verdict in ("supported", "unverifiable")
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="raw.get raises AttributeError when the model returns a JSON list or string")
 @pytest.mark.parametrize("reply", [["supported"], "supported", None])
 def test_a_reply_that_is_not_an_object_is_unverifiable(reply):
     assert check_claim(claim(), window(), lambda p, t: reply, "j").verdict == "unverifiable"

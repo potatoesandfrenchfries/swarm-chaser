@@ -267,9 +267,9 @@ def test_evidence_window_is_a_same_agent_time_bounded_subset(rows):
         assert r["agent"] == "a"
         offset = (datetime.fromisoformat(r["ts"].replace("Z", "+00:00")) - T0).total_seconds()
         assert -WINDOW_BEFORE_SECONDS <= offset <= WINDOW_AFTER_SECONDS
-    # Nothing eligible is left out.
+    # Nothing eligible is left out, and the window is in time order (ties by id).
     expected = [r for r in rows if r["agent"] == "a" and -WINDOW_BEFORE_SECONDS <= (datetime.fromisoformat(r["ts"].replace("Z", "+00:00")) - T0).total_seconds() <= WINDOW_AFTER_SECONDS]
-    assert window == expected
+    assert window == sorted(expected, key=lambda r: (datetime.fromisoformat(r["ts"].replace("Z", "+00:00")), r["id"]))
 
 
 @given(
