@@ -145,18 +145,32 @@ def relation_requests(claims: list, later_rows: list[dict]) -> list[tuple[str, s
 
 
 def model_link(
-    claim, later_rows: list[dict], call_relation_classifier: Callable[[str, str], dict]
+    claim, later_rows: list[dict], call_relation_classifier: Callable[[str, str], dict], failed: Optional[list] = None
 ) -> list[SpreadEdge]:
     """LLM-based linker. Every later row that `could_have_seen` the claim goes to the model, with
     no word-overlap pre-filter, because a correction rarely repeats the claim's words. That is
     one call per (claim, eligible row), so estimate a run with `relation_requests` first.
     Pass `ModelClient(...).as_caller()` as `call_relation_classifier` to cache the answers.
+
+    A reply that is not a JSON object stops the run, unless `failed` is given: then the row's id
+    is appended to it and the run goes on, so a long run survives one bad reply and the caller
+    can still report how many rows were never classified.
     """
+    from llm.client import ReplyNotJSON
+
     edges = []
     for row in later_rows:
         if not could_have_seen(claim.agent, claim.ts, row):
             continue
-        raw = call_relation_classifier(RELATION_PROMPT, _relation_input(claim, row))
+        try:
+            raw = call_relation_classifier(RELATION_PROMPT, _relation_input(claim, row))
+            if not isinstance(raw, dict):
+                raise ReplyNotJSON(repr(raw)[:200])
+        except ReplyNotJSON:
+            if failed is None:
+                raise
+            failed.append(row["id"])
+            continue
         relation = raw.get("relation", "none")
         if relation in RELATIONS:
             edges.append(SpreadEdge(claim_id=claim.claim_id, later_message_id=row["id"], relation=relation, agent=row["agent"], ts=row["ts"]))
