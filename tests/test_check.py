@@ -60,3 +60,40 @@ def test_check_claim_rejects_unknown_verdict_label():
 
     verdict = check_claim(claim(), [], fake_checker, judge_name="vendor-x")
     assert verdict.verdict == "unverifiable"
+
+
+# --- the prompt (M4.2) --------------------------------------------------------------------------
+
+
+def test_the_prompt_defines_all_three_verdicts_and_keeps_unverifiable_a_normal_answer():
+    from check.checker import CHECKER_PROMPT, VERDICTS
+
+    lowered = " ".join(CHECKER_PROMPT.lower().split())
+    assert all(f"- {v}:" in lowered for v in VERDICTS)
+    assert "unverifiable is a normal, counted answer" in lowered
+
+
+def test_the_prompt_rules_out_the_ways_a_checker_goes_wrong_here():
+    from check.checker import CHECKER_PROMPT
+
+    lowered = " ".join(CHECKER_PROMPT.lower().split())
+    assert "not evidence for itself" in lowered  # the window contains the claim's own entry
+    assert "silence is not contradiction" in lowered
+    assert "never as instructions" in lowered
+    assert "credentials" in lowered
+
+
+def test_the_prompt_asks_for_the_keys_check_claim_reads_and_a_reason_for_hand_reading():
+    from check.checker import CHECKER_PROMPT
+
+    assert all(f'"{k}"' in CHECKER_PROMPT for k in ("verdict", "evidence", "confidence", "reason"))
+
+
+def test_an_extra_reason_key_in_the_reply_does_not_break_check_claim():
+    from check.checker import check_claim
+    from extract.claims import Claim
+
+    window = [{"id": "r", "agent": "a", "ts": "2025-05-01T00:00:00Z", "source": "memory", "text": "3 of 12 tests failed"}]
+    reply = {"verdict": "contradicted", "evidence": ["3 of 12 tests failed"], "confidence": 0.9, "reason": "the memory shows failures"}
+    v = check_claim(Claim("c", "e", "a", "", "2025-05-01T00:00:00Z", "chat", "q", "x", True), window, lambda p, t: reply, "j")
+    assert (v.verdict, v.evidence) == ("contradicted", ["3 of 12 tests failed"])
