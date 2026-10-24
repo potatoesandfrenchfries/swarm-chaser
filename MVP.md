@@ -98,6 +98,28 @@ Python 3.11+ with `uv`, SQLite, one extraction model and two checker models from
 vendors, `pytest`, a static HTML page. Docker, Inspect AI and OpenRouter for M9 to M11. Details
 are in [scope.md section 4](./scope.md#4-stack).
 
+## Implementation status
+
+Templates for each stage are in `src/`, with `CUSTOMISE` comments where a placeholder needs
+real data or a reviewed scenario. They are scaffolding, not finished stages: `pytest -q` passes
+(55 tests, offline), but nothing has run against a model client, Docker or real village data.
+
+| Module | Covers | State |
+| --- | --- | --- |
+| `src/ingest/village.py` | M2 | Template. Field names are placeholders until the real HF schema is checked. Includes the memories-and-timeline join test. |
+| `src/extract/claims.py` | M3 | Template. Chunking, substring check and prompt hashing work. One prompt variant exists; the second is still to write. |
+| `src/check/checker.py` | M4 | Template. Vendor-agnostic: pass in a client per vendor. Evidence that is not a real substring downgrades the verdict to `unverifiable`. |
+| `src/report/headline.py` | M5 | Done and tested. |
+| `src/eval/validation.py` | M6 | Perturbation test, kappa and known-failure recall exist. Tagging which seed findings are false claims, and matching them to the logs, is still to do. |
+| `src/spread/linker.py` | M7 | String-match baseline and a pluggable model linker. The model prompt and the three documented cases are still to do. |
+| `src/eval/decision_curve.py` | M8 | Template. The default score (checker confidence) is a placeholder. |
+| `src/lab/arms.py` | M9, M11 | Arm and run shapes plus acting-rate and handling scoring only. The scenario, planted claim and influencer text are deliberately not here and need separate review. |
+| `src/eval/forecaster.py` | M10, S1 | Scoring (accuracy, Brier, AUC against the base rate) done. The prompt's outcome wording waits on the M9 pilot. |
+| `src/report/page.py` | M12 | Template. Renders tables only; plots and the documented cases are still to do. |
+
+Not started: M1 (access), M13 (one-command rerun, config file with frozen prompt hashes), and
+the model client wrappers with caching.
+
 ## Order of work
 
 1. **Hour 1:** confirm access, test the memories-and-timeline join, pick the slice, set a spend cap.
