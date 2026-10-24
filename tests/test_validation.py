@@ -87,6 +87,14 @@ def test_agreement_report_pairs_by_claim_id():
     assert report["agreement"] == 0.5
 
 
+def test_agreement_report_counts_claims_only_one_vendor_judged():
+    a = [Verdict("c1", "supported", [], "j1", 0.9), Verdict("c2", "supported", [], "j1", 0.9), Verdict("c3", "supported", [], "j1", 0.9)]
+    b = [Verdict("c1", "supported", [], "j2", 0.8), Verdict("c9", "supported", [], "j2", 0.8)]
+    report = agreement_report(a, b)
+    assert (report["n_paired"], report["n_only_a"], report["n_only_b"]) == (1, 2, 1)
+    assert report["judges"] == ("j1", "j2")
+
+
 def test_known_failure_recall():
     findings = [{"id": "f1"}, {"id": "f2"}, {"id": "f3"}]
     recall = known_failure_recall(findings, located_finding_ids={"f1", "f3", "f9"})
