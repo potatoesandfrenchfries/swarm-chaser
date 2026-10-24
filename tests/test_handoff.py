@@ -15,6 +15,7 @@ from ingest.handoff import (
     connect_sample,
     read_claim_rooms,
     read_claims,
+    read_edges,
     read_record,
     read_room_members,
     read_room_timelines,
@@ -145,6 +146,26 @@ def test_rebuilding_gives_the_same_contents(tmp_path):
         build_sample(tmp_path / "s.sqlite", tmp_path / f"{name}.sqlite", [claim("c", "m2")], [], export)
         dumps.append("\n".join(sqlite3.connect(tmp_path / f"{name}.sqlite").iterdump()))
     assert dumps[0] == dumps[1]
+
+
+def test_the_baseline_links_a_chat_claim_to_later_repeats_by_agents_who_could_have_seen_it(tmp_path):
+    messages = MESSAGES + LATER
+    export = write_export(tmp_path / "hf", messages)
+    build_slice(export, tmp_path / "s.sqlite", episodes=["e1", "e2"])
+    said = claim("e1#0-e1-0", "m2", quote="The nightly build passed with 12 tests green")  # bob repeats it in m3
+    remembered = claim("e1#1-e1-0", "k1", source="memory", agent="alice", quote="3 of 12 tests failed on the nightly build")  # a memory is private
+    report = build_sample(tmp_path / "s.sqlite", tmp_path / "out.sqlite", [said, remembered], [], export)
+    edges = read_edges(sqlite3.connect(tmp_path / "out.sqlite"), "baseline")
+    assert [(e.claim_id, e.later_message_id, e.relation, e.agent) for e in edges] == [("e1#0-e1-0", "m3", "repeats", "bob")]
+    assert report["baseline_edges"] == 1
+
+
+def test_the_baseline_does_not_look_outside_the_claims_episode_or_back_in_time(tmp_path):
+    export = write_export(tmp_path / "hf", MESSAGES + [chat("m12", "carol", "2025-06-02 09:00:00.000000", "The nightly build passed with 12 tests green.")])
+    build_slice(export, tmp_path / "s.sqlite", episodes=["e1", "e2"])
+    early = claim("e1#0-e1-0", "m5", agent="dave", ts="2025-05-01T13:00:00.000000Z", quote="The nightly build passed with 12 tests green")  # m3 is before it; m12 is in e2
+    build_sample(tmp_path / "s.sqlite", tmp_path / "out.sqlite", [early], [], export)
+    assert read_edges(sqlite3.connect(tmp_path / "out.sqlite"), "baseline") == []
 
 
 def test_a_claim_judged_twice_by_one_vendor_keeps_its_first_verdict_and_the_repeat_is_counted(sample):

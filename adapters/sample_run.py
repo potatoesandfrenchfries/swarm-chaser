@@ -163,8 +163,11 @@ def publish_stage(args, transports: Transports) -> int:
         print(f"no {path}; run the extract stage first", file=sys.stderr)
         return 2
     claims = [Claim(**c) for c in json.loads(path.read_text(encoding="utf-8"))]
+    # verdicts.json is the check stage's output; verdicts_manual.json, if present, is verdicts a person or model wrote
+    # by hand where a vendor's answers are missing, under their own judge name so they are never mistaken for a vendor's.
     verdict_path = args.out / "verdicts.json"
-    verdicts = [Verdict(**{k: v for k, v in raw.items() if k != "quote"}) for raw in json.loads(verdict_path.read_text(encoding="utf-8"))] if verdict_path.exists() else []
+    files = [verdict_path, args.out / "verdicts_manual.json"]
+    verdicts = [Verdict(**{k: v for k, v in raw.items() if k != "quote"}) for f in files if f.exists() for raw in json.loads(f.read_text(encoding="utf-8"))]
     report = build_sample(args.db, args.sample_db, claims, verdicts, args.export)
     print(json.dumps(report, indent=1, sort_keys=True))
     if not verdicts:

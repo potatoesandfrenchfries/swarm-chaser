@@ -125,3 +125,15 @@ def test_a_claim_stamped_with_the_wrong_episode_is_checked_in_its_rows_episode(e
     c = Claim("ep1#0-e1-0", "ep1", "a", "m", "t", "chat", "q", "self-report", True, "e1", "r1")
     orphan = Claim("ep1#0-e1-1", "ep1", "a", "m", "t", "chat", "q", "self-report", True, "e1", "")
     assert [x.episode for x in sample_run.with_row_episodes([c, orphan], rows)] == ["ep2", "ep1"]
+
+
+def test_publish_adds_hand_written_verdicts_under_their_own_judge(env, capsys):
+    from test_handoff import write_export
+
+    env.run("extract", "--chunks", "1", "--live")
+    manual = [{"claim_id": c["claim_id"], "verdict": "unverifiable", "evidence": [], "judge": "manual/someone", "confidence": 0.5, "quote": c["quote"]}
+              for c in json.loads((env.out / "claims.json").read_text())]
+    (env.out / "verdicts_manual.json").write_text(json.dumps(manual))
+    db = env.tmp / "sample.sqlite"
+    assert env.run("publish", "--export", str(write_export(env.tmp / "hf")), "--sample-db", str(db)) == 0
+    assert sqlite3.connect(db).execute("SELECT DISTINCT judge FROM verdicts").fetchall() == [("manual/someone",)]

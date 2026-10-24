@@ -12,7 +12,17 @@ import pytest
 from check.checker import Verdict
 from conftest import REPO_ROOT
 from eval.validation import agreement_report, locate_findings, perturbation_test
-from ingest.handoff import SAMPLE_DB, build_sample, read_claim_rooms, read_claims, read_record, read_room_timelines, read_verdicts
+from ingest.handoff import (
+    SAMPLE_DB,
+    build_sample,
+    read_claim_rooms,
+    read_claims,
+    read_edges,
+    read_record,
+    read_room_members,
+    read_room_timelines,
+    read_verdicts,
+)
 from ingest.store import build_slice, read_rows
 from spread.linker import baseline_link, visible_rows
 from test_handoff import claim, write_export
@@ -84,3 +94,32 @@ def test_person_2_stages_run_on_a_synthetic_sample_database(tmp_path):
 def test_person_2_stages_run_on_the_real_sample_database():
     out = run_stages(sqlite3.connect(REAL_SAMPLE))
     assert out["claims"] > 0
+
+
+@pytest.fixture(scope="module")
+def real_db():
+    if not REAL_SAMPLE.exists():
+        pytest.skip(f"real sample database not at {REAL_SAMPLE} (git-ignored, dataset terms)")
+    con = sqlite3.connect(f"file:{REAL_SAMPLE}?mode=ro", uri=True)
+    yield con
+    con.close()
+
+
+def test_every_stored_baseline_edge_is_a_later_visible_chat_repeat_in_the_claims_episode(real_db):
+    claims = {c.claim_id: c for c in read_claims(real_db)}
+    rows = {r[0]: r for r in real_db.execute("SELECT id, episode_id, agent, ts, source FROM rows")}
+    timelines, rooms = read_room_timelines(real_db), read_claim_rooms(real_db)
+    edges = read_edges(real_db, "baseline")
+    assert edges
+    for e in edges:
+        claim_, (_, episode, agent, ts, source) = claims[e.claim_id], rows[e.later_message_id]
+        assert claim_.source == "chat" and source == "chat" and episode == claim_.episode
+        assert agent == e.agent != claim_.agent and ts == e.ts and ts > claim_.ts  # timestamps are fixed-width UTC, so string order is time order
+        row = {"id": e.later_message_id, "agent": agent, "ts": ts}
+        assert visible_rows(claim_, [row], rooms[e.claim_id] or None, timelines) == [row]
+
+
+def test_every_agent_who_wrote_a_row_has_a_room_timeline_and_a_place_on_a_member_list(real_db):
+    agents = {a for (a,) in real_db.execute("SELECT DISTINCT agent FROM rows")}
+    assert agents <= set(read_room_timelines(real_db))
+    assert agents <= set().union(*read_room_members(real_db).values())

@@ -14,6 +14,9 @@ Tables. `rows` is the M2 table unchanged. The rest are what M6, M7 and M8 read:
 - `rooms` / `room_members`: `chat_rooms`, and who may read each room as `{room_id: {agent names}}`. A
   whitelist is the members; a blacklist is everyone else; neither means every agent.
 - `room_timeline`: `{agent: [(ts, room_id), ...]}`, the input to `spread.linker.visible_rows`.
+- `spread_edges`: `spread.linker.SpreadEdge`, one row per claim, later message and linker. The string-match
+  baseline (M7.1) is run over every chat claim when the database is built, on the later chat rows of the claim's
+  episode whose author could have seen it (`visible_rows`), and stored as `linker = "baseline"`.
 
 `room_timeline` is read off the agents' own chat rows, because the export's `events` table (which holds the
 `ENTER_ROOM` events) is not downloaded here. An agent is placed in the room it last spoke in, so a move it
@@ -23,12 +26,14 @@ before the second room was created, "chat" for a room an agent was seen speaking
 """
 import json
 import sqlite3
+from bisect import bisect_right
 from pathlib import Path
 
 from check.checker import VERDICTS, Verdict
 from extract.claims import Claim, render_row
 from ingest.store import COLUMNS, connect, read_rows, write_rows
 from ingest.village import iter_jsonl, normalise_ts
+from spread.linker import SpreadEdge, baseline_link, visible_rows
 
 SAMPLE_DB = Path("local/sample.sqlite")
 ROOMS_BEGAN = "2026-02-25T00:00:00.000000Z"  # SCHEMA.md: chat rooms were added on this date
@@ -52,6 +57,10 @@ def connect_sample(path: str | Path) -> sqlite3.Connection:
     db.execute(
         "CREATE TABLE IF NOT EXISTS room_timeline (agent TEXT NOT NULL, ts TEXT NOT NULL, room_id TEXT NOT NULL, "
         "source TEXT NOT NULL CHECK (source IN ('start', 'chat')), PRIMARY KEY (agent, ts, room_id))"
+    )
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS spread_edges (claim_id TEXT NOT NULL, later_message_id TEXT NOT NULL, relation TEXT NOT NULL, agent TEXT NOT NULL, "
+        "ts TEXT NOT NULL, linker TEXT NOT NULL, PRIMARY KEY (claim_id, later_message_id, linker))"
     )
     return db
 
@@ -86,6 +95,37 @@ def write_verdicts(db: sqlite3.Connection, verdicts: list[Verdict]) -> dict:
     db.commit()
     stored = db.total_changes - before
     return {"verdicts": stored, "verdicts_repeated": len(verdicts) - stored}
+
+
+def write_edges(db: sqlite3.Connection, edges: list[SpreadEdge], linker: str) -> int:
+    db.executemany("INSERT OR REPLACE INTO spread_edges VALUES (?, ?, ?, ?, ?, ?)", [(e.claim_id, e.later_message_id, e.relation, e.agent, e.ts, linker) for e in edges])
+    db.commit()
+    return len(edges)
+
+
+def read_edges(db: sqlite3.Connection, linker: str) -> list[SpreadEdge]:
+    sql = "SELECT claim_id, later_message_id, relation, agent, ts FROM spread_edges WHERE linker = ? ORDER BY claim_id, ts, later_message_id"
+    return [SpreadEdge(*r) for r in db.execute(sql, (linker,))]
+
+
+def baseline_edges(db: sqlite3.Connection) -> list[SpreadEdge]:
+    """The string-match baseline over every chat claim in `db`: each against the later chat rows of its own
+    episode whose author was in the claim's room (or whose room is not known), as `visible_rows` decides.
+    A claim from a memory is skipped: it is private to its author, so nobody else could have seen it
+    (linker.py: "this only covers claims in chat").
+    """
+    timelines, rooms = read_room_timelines(db), read_claim_rooms(db)
+    chat: dict[str, list[dict]] = {}
+    for row in read_rows(db):
+        if row["source"] == "chat":
+            chat.setdefault(row["episode_id"], []).append(row)  # read_rows is in time order
+    stamps = {episode: [r["ts"] for r in rows] for episode, rows in chat.items()}
+    edges: list[SpreadEdge] = []
+    for claim in (c for c in read_claims(db) if c.source == "chat"):
+        rows = chat.get(claim.episode, [])
+        later = rows[bisect_right(stamps.get(claim.episode, []), claim.ts) :]
+        edges += baseline_link(claim, visible_rows(claim, later, rooms.get(claim.claim_id) or None, timelines))
+    return edges
 
 
 def read_claims(db: sqlite3.Connection) -> list[Claim]:
@@ -198,5 +238,6 @@ def build_sample(slice_db: str | Path, out: str | Path, claims: list[Claim], ver
     data = read_room_data(export_dir, max(r["ts"] for r in rows))
     write_room_data(db, data)
     report["rooms"] = data["report"]
+    report["baseline_edges"] = write_edges(db, baseline_edges(db), "baseline")
     db.close()
     return report
