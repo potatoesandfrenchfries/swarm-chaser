@@ -16,6 +16,7 @@ from eval.validation import (
     locate_findings,
     perturb,
     perturbation_test,
+    slice_finding_ids,
     tag_false_claim_findings,
     validation_table,
 )
@@ -185,7 +186,7 @@ def test_validation_table_has_one_row_per_check_with_its_sample_size():
         {"n_seed_findings": 30, "n_located": 12, "recall": 0.4},
         {"n_read": 20, "note": "two verdicts cited the wrong day"},
     )
-    assert [(r["value"], r["n"]) for r in rows] == [("0.80", 300), ("0.72", 500), ("0.40", 30), ("two verdicts cited the wrong day", 20)]
+    assert [(r["value"], r["n"]) for r in rows] == [("0.80 (0.75-0.84)", 300), ("0.72", 500), ("0.40 (0.25-0.58)", 30), ("two verdicts cited the wrong day", 20)]
     assert all(r["note"] for r in rows)
 
 
@@ -211,3 +212,16 @@ def test_section_4_shows_the_validation_table_with_n_and_limits():
     out = section_4_validation({}, table=rows)
     assert out.count("<tr>") == 5 and "What it does not show" in out
     assert "&lt;wrong&gt;" in out and "<wrong>" not in out
+
+
+def test_known_failure_recall_counts_only_findings_the_slice_could_contain():
+    findings = [{"id": "M001"}, {"id": "M002"}, {"id": "M003"}, {"id": "M999"}]
+    r = known_failure_recall(findings, {"M001", "M999"}, in_slice={"M001", "M002", "M003"})
+    assert (r["n_seed_findings"], r["n_located"], r["n_outside_slice"]) == (3, 1, 1)  # M999 is outside, found or not
+    assert r["low"] < 1 / 3 < r["high"]
+
+
+def test_slice_finding_ids_reads_every_episode_in_slice_toml():
+    config = {"findings": {"ep1": ["M001", "M002"], "ep2": ["M002", "M003"]}}
+    assert slice_finding_ids(config) == {"M001", "M002", "M003"}
+    assert slice_finding_ids()  # slice.toml lists the findings inside the chosen episodes
