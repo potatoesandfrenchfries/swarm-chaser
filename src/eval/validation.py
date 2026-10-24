@@ -238,9 +238,9 @@ def locate_findings(false_claim_findings: list[dict], contradicted_claims: list)
     """
     from datetime import datetime, timezone
 
-    from ingest.village import _parse_ts
+    from ingest.village import parse_ts
 
-    claim_days = [(c.agent, datetime.fromtimestamp(_parse_ts(c.ts), timezone.utc).date().isoformat()) for c in contradicted_claims if c.ts]
+    claim_days = [(c.agent, datetime.fromtimestamp(parse_ts(c.ts), timezone.utc).date().isoformat()) for c in contradicted_claims if c.ts]
     found = set()
     for f in false_claim_findings:
         span = finding_date_range(f.get("behavior_dates", ""))
