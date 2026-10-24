@@ -143,8 +143,6 @@ def agreement_report(verdicts_a: list, verdicts_b: list) -> dict:
 # --- (c) known-failure recall -------------------------------------------------------------
 
 
-# The rubric's usable findings; `drop` and `needs screenshots` entries are not part of the 96.
-USABLE_FINDING_GROUPS = ("keep", "rewrite")
 
 # Where the gitignored clone of slopvestigatorbench (scope.md, REPOS.md) puts the findings.
 SEED_FINDINGS_PATH = "temps_ideas/repos/slopvestigatorbench-aivillage/benchmark/incidents/aivillage/findings/final-findings.json"
@@ -173,7 +171,9 @@ def load_seed_findings(path) -> list[dict]:
     import json
     from pathlib import Path
 
-    return [f for f in json.loads(Path(path).read_text(encoding="utf-8")) if f.get("group") in USABLE_FINDING_GROUPS]
+    from ingest.slice import USABLE_GROUPS
+
+    return [f for f in json.loads(Path(path).read_text(encoding="utf-8")) if f.get("group") in USABLE_GROUPS]
 
 
 def tag_false_claim_findings(findings: list[dict], call_tagger: Callable[[str, str], object]) -> tuple[list[dict], list[dict]]:
@@ -242,24 +242,45 @@ def locate_findings(false_claim_findings: list[dict], contradicted_claims: list)
     return found
 
 
-def known_failure_recall(seed_findings: list[dict], located_finding_ids: set[str]) -> dict:
-    """Share of the LLM-tagged false-claim seed findings the pipeline located.
+def slice_finding_ids(config: dict | None = None) -> set[str]:
+    """Ids of the seed findings `slice.toml` lists as falling inside the chosen episodes. Recall
+    is only fair over these: a finding outside the slice cannot be located in it.
+    """
+    from ingest.slice import load_slice
+
+    config = load_slice() if config is None else config
+    return {fid for ids in config.get("findings", {}).values() for fid in ids}
+
+
+def known_failure_recall(seed_findings: list[dict], located_finding_ids: set[str], in_slice: set[str] | None = None) -> dict:
+    """Share of the LLM-tagged false-claim seed findings the pipeline located, with a Wilson
+    interval, because there are only a handful of them.
 
     `seed_findings` is the first list from `tag_false_claim_findings` (scope.md section 3:
     "They are not labelled by type. Tag which are false claims before using them as labels.")
-    and `located_finding_ids` comes from `locate_findings`. The seed set is not exhaustive, so
-    this is recall, never precision.
+    and `located_finding_ids` comes from `locate_findings`. Pass `in_slice` (from
+    `slice_finding_ids`) to count only findings the slice could contain; the rest are reported
+    as `n_outside_slice`. The seed set is not exhaustive, so this is recall, never precision.
     """
+    from report.headline import wilson
+
     ids = {f["id"] for f in seed_findings}
+    outside = ids - in_slice if in_slice is not None else set()
+    ids -= outside
     found = ids & located_finding_ids
-    return {
-        "n_seed_findings": len(ids),
-        "n_located": len(found),
-        "recall": len(found) / len(ids) if ids else float("nan"),
-    }
+    recall, low, high = wilson(len(found), len(ids))
+    return {"n_seed_findings": len(ids), "n_located": len(found), "recall": recall, "low": low, "high": high, "n_outside_slice": len(outside)}
 
 
 # --- the validation table (M6.5) ----------------------------------------------------------
+
+
+def _with_interval(k: int, n: int) -> str:
+    """A share as "0.80 (0.75-0.84)", the bracket being its 95% Wilson interval."""
+    from report.headline import wilson
+
+    share, low, high = wilson(k, n)
+    return "n/a" if n == 0 else f"{share:.2f} ({low:.2f}-{high:.2f})"
 
 
 def _shown(x: Optional[float]) -> str:
@@ -272,8 +293,9 @@ def validation_table(perturbation: dict, agreement: dict, recall: dict, spot_che
 
     Inputs are the dicts from `perturbation_test`, `agreement_report` and
     `known_failure_recall`, plus `spot_check = {"n_read": int, "note": str}` written by hand
-    after reading about 20 outputs. Every row says what the number does not show, because none
-    of these is precision against human labels (pipeline-rules).
+    after reading about 20 outputs. Shares carry their 95% Wilson interval. Every row says what
+    the number does not show, because none of these is precision against human labels
+    (pipeline-rules).
     """
     kappa_note = "consistency between vendors, not correctness"
     if agreement["unreliable"]:
@@ -281,16 +303,16 @@ def validation_table(perturbation: dict, agreement: dict, recall: dict, spot_che
     return [
         {
             "measure": "Perturbation: share of changed claims caught",
-            "value": _shown(perturbation["share_caught"]),
+            "value": _with_interval(perturbation["n_caught"], perturbation["n_perturbable"]),
             "n": perturbation["n_perturbable"],
             "note": "sensitivity to planted errors, not a false-positive rate",
         },
         {"measure": "Cohen's kappa between checker vendors", "value": _shown(agreement["kappa"]), "n": agreement["n_paired"], "note": kappa_note},
         {
             "measure": "Known-failure recall",
-            "value": _shown(recall["recall"]),
+            "value": _with_interval(recall["n_located"], recall["n_seed_findings"]),
             "n": recall["n_seed_findings"],
-            "note": "seed findings are not exhaustive, so this is recall, not precision",
+            "note": "seed findings inside the slice only; not exhaustive, so this is recall, not precision",
         },
         {"measure": "Spot-check by hand", "value": spot_check["note"], "n": spot_check["n_read"], "note": "read by a teammate, not a labelled gold set"},
     ]
