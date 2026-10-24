@@ -1,6 +1,6 @@
 import pytest
 
-from extract.claims import CLAIM_PROMPT, CLAIM_PROMPT_E2
+from extract.claims import CLAIM_PROMPT, CLAIM_PROMPT_E2, chunk_rows, render_row
 from extract.run import extract_requests, extractor_spec, pick_chunks, run_extraction
 from llm.client import ModelClient, ReplyNotJSON
 
@@ -114,3 +114,12 @@ def test_two_extractors_never_give_two_claims_the_same_id():
     e1, _ = run_extraction([c], lambda p, t: reply("I filed the report"), "e1")
     e2, _ = run_extraction([c], lambda p, t: reply("I filed the report"), "e2")
     assert e1[0].claim_id != e2[0].claim_id and {e1[0].claim_id, e2[0].claim_id} == {"c1-e1-0", "c1-e2-0"}
+
+
+def test_a_quote_from_the_row_two_chunks_share_is_kept_once():
+    rows = [{**ROW, "episode_id": "e", "id": f"r{n}", "text": text} for n, text in enumerate(["we sold 12 shirts", "the store is live", "bob agreed"])]
+    chunks = chunk_rows(rows, max_chars=2 * len(render_row(rows[1])), overlap=1)
+    assert [c["row_ids"] for c in chunks] == [["r0", "r1"], ["r1", "r2"]]  # r1 is in both
+    claims, dropped = run_extraction(chunks, lambda p, t: reply("the store is live"))
+    assert [c.row_id for c in claims] == ["r1"]
+    assert [d["reason"] for d in dropped] == ["repeat_from_overlap"]

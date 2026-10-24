@@ -33,8 +33,6 @@ def window(text="nothing relevant"):
 # --- extract: a claim must carry a real quote and a time ----------------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="validate_quote('') is True, so a claim with a missing or empty quote is kept; "
-                   "breaks 'every quote is an exact substring' (a quote must also be non-empty)")
 @pytest.mark.parametrize("raw", [{"agent": "a"}, {"quote": "", "agent": "a"}])
 def test_a_claim_without_a_quote_is_dropped(raw):
     kept, dropped = parse_claims({"claims": [raw]}, CHUNK)
