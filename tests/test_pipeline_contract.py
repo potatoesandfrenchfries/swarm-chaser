@@ -29,6 +29,13 @@ SRC_PACKAGES = {p.name for p in SRC.iterdir() if p.is_dir() and not p.name.start
 # `test-fast` job in .github/workflows/ci.yml in the same change.
 ALLOWED_THIRD_PARTY: set[str] = set()
 
+# The one exception: the whitebox probe fits a scikit-learn classifier on sandbox runs (scope.md bans
+# fitting on village data, not on sandbox runs). It is skipped when sklearn is missing, so the fast job
+# still needs nothing but pytest. `test_only_the_sandbox_package_may_use_the_sandbox_classifier` keeps it
+# away from the village pipeline.
+SANDBOX_CLASSIFIER = "src/sandbox/classify.py"
+FILE_THIRD_PARTY = {SANDBOX_CLASSIFIER: {"numpy", "sklearn"}}
+
 
 # --- the shared vocabulary ---------------------------------------------------------------------
 
@@ -118,7 +125,7 @@ def test_src_imports_only_the_standard_library_and_itself():
     offenders = {
         str(f.relative_to(REPO_ROOT)): sorted(bad)
         for f in SRC_FILES
-        if (bad := _imports(f) - set(sys.stdlib_module_names) - SRC_PACKAGES - ALLOWED_THIRD_PARTY)
+        if (bad := _imports(f) - set(sys.stdlib_module_names) - SRC_PACKAGES - ALLOWED_THIRD_PARTY - FILE_THIRD_PARTY.get(str(f.relative_to(REPO_ROOT)), set()))
     }
     assert not offenders, f"third-party imports need an entry in ALLOWED_THIRD_PARTY and the CI install: {offenders}"
 
@@ -144,8 +151,20 @@ def test_src_never_uses_the_unseeded_global_random_generator():
 def test_src_fits_nothing_to_village_data():
     """Rule: no training or fitting; every score is zero-shot."""
     fitting = re.compile(r"\.(fit|fit_transform|partial_fit|train)\(|\bimport (sklearn|torch|xgboost|lightgbm)|from (sklearn|torch)")
-    hits = [f"{f.relative_to(REPO_ROOT)}:{n}" for f in SRC_FILES for n, line in enumerate(f.read_text().splitlines(), 1) if fitting.search(line)]
+    hits = [
+        f"{f.relative_to(REPO_ROOT)}:{n}"
+        for f in SRC_FILES
+        if str(f.relative_to(REPO_ROOT)) != SANDBOX_CLASSIFIER
+        for n, line in enumerate(f.read_text().splitlines(), 1)
+        if fitting.search(line)
+    ]
     assert not hits, hits
+
+
+def test_only_the_sandbox_package_may_use_the_sandbox_classifier():
+    """The exemption above covers sandbox runs only. A village stage importing it would be fitting on village data."""
+    users = [str(f.relative_to(REPO_ROOT)) for f in SRC_FILES if f.parent.name != "sandbox" and "sandbox" in _imports(f)]
+    assert not users, users
 
 
 def test_src_makes_no_network_or_model_calls():
