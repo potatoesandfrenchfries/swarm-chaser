@@ -139,28 +139,46 @@ class Verdict:
     confidence: float
 
 
+def checker_input(claim, text: str) -> str:
+    return f"CLAIM: {claim.quote}\n\nWINDOW:\n{text}"
+
+
 def check_claim(claim, window: list[dict], call_checker: Callable[[str, str], dict], judge_name: str) -> Verdict:
     """Run one claim through a checker. `call_checker(prompt, claim_and_window_text) -> dict`
     is supplied by the caller so this stays vendor-agnostic; see CHECKER_PROMPT for the
-    expected reply shape. Evidence quotes that are not real substrings of the window are
-    dropped and, if none survive, the verdict is downgraded to "unverifiable" — a wrong-but-
-    confident answer with fabricated evidence must not count as a real verdict.
+    expected reply shape. Evidence quotes that are empty or not real substrings of the window are
+    dropped and, if none survive, a supported or contradicted verdict is downgraded to "unverifiable"
+    — a wrong-but-confident answer with fabricated evidence must not count as a real verdict. A reply
+    that is not an object, or has a confidence that is not a number, is read as far as it can be
+    rather than stopping the run.
     """
     text = window_text(window)
-    raw = call_checker(CHECKER_PROMPT, f"CLAIM: {claim.quote}\n\nWINDOW:\n{text}")
+    raw = call_checker(CHECKER_PROMPT, checker_input(claim, text))
+    if not isinstance(raw, dict):
+        raw = {}  # a reply that is not an object says nothing
 
     verdict = raw.get("verdict", "unverifiable")
     if verdict not in VERDICTS:
         verdict = "unverifiable"
 
-    checked_evidence = [q for q in raw.get("evidence", []) if q in text]
-    if raw.get("evidence") and not checked_evidence:
-        verdict = "unverifiable"  # claimed evidence that doesn't check out is no evidence
+    quoted = raw.get("evidence", [])
+    if isinstance(quoted, str):
+        quoted = [quoted]
+    if not isinstance(quoted, list):
+        quoted = []
+    checked_evidence = [q for q in quoted if isinstance(q, str) and q.strip() and q in text]
+    if verdict != "unverifiable" and not checked_evidence:
+        verdict = "unverifiable"  # a supported or contradicted verdict with no real quote behind it is no verdict
+
+    try:
+        confidence = min(1.0, max(0.0, float(raw.get("confidence", 0.0))))
+    except (TypeError, ValueError):
+        confidence = 0.0
 
     return Verdict(
         claim_id=claim.claim_id,
         verdict=verdict,
         evidence=checked_evidence,
         judge=judge_name,
-        confidence=float(raw.get("confidence", 0.0)),
+        confidence=confidence,
     )

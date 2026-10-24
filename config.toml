@@ -11,3 +11,19 @@
 [prompts]
 "spread.linker:RELATION_PROMPT" = "2690f0ab9061aa0519a85f7969f071250bd5dfa1c9ede71d74ad305c0a5cc35d"
 "eval.decision_curve:SCORE_PROMPT" = "a4268b488ebfab4db0c93edcb7795f844072ad57d0be8a7c85df206c85b18568"
+
+# The two checker models (MVP.md M4, from different vendors). Not set yet: pick them with the team, then
+# add prices (USD per million tokens) so a spend cap can be used. `vendor` selects the transport in
+# adapters/vendors.py; `model` is that vendor's id. Read by src/check/run.py.
+#
+# [checkers.a]
+# vendor = "anthropic"
+# model = "..."
+# usd_per_mtok_in = 0.0
+# usd_per_mtok_out = 0.0
+#
+# [checkers.b]
+# vendor = "openrouter"
+# model = "<vendor>/<model>"
+# usd_per_mtok_in = 0.0
+# usd_per_mtok_out = 0.0

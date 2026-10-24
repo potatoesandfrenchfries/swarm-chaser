@@ -1,6 +1,10 @@
+import pytest
+
 from check import checker
 from check.checker import Verdict, check_claim, claim_window, evidence_window, window_text
+from check.run import checker_requests, checker_specs, run_checks
 from extract.claims import Claim
+from llm.client import Completion, ModelClient, ModelSpec, ReplyNotJSON
 
 
 def claim(ts="2025-05-01T12:00:00Z", agent="a", quote="the report was filed"):
@@ -143,3 +147,85 @@ def test_an_extra_reason_key_in_the_reply_does_not_break_check_claim():
     reply = {"verdict": "contradicted", "evidence": ["3 of 12 tests failed"], "confidence": 0.9, "reason": "the memory shows failures"}
     v = check_claim(Claim("c", "e", "a", "", "2025-05-01T00:00:00Z", "chat", "q", "x", True), window, lambda p, t: reply, "j")
     assert (v.verdict, v.evidence) == ("contradicted", ["3 of 12 tests failed"])
+
+
+# --- running a vendor over many claims (M4.3) ----------------------------------------------------------
+
+
+
+def test_a_supported_verdict_with_no_evidence_is_unverifiable():
+    window = [row("2025-05-01T11:00:00Z", text="x")]
+    v = check_claim(claim(), window, lambda p, t: {"verdict": "supported", "evidence": [], "confidence": 0.9}, "j")
+    assert v.verdict == "unverifiable"
+
+
+def test_confidence_is_clamped_to_zero_one():
+    window = [row("2025-05-01T11:00:00Z", text="x")]
+    v = check_claim(claim(), window, lambda p, t: {"verdict": "unverifiable", "confidence": 7}, "j")
+    assert v.confidence == 1.0
+
+
+def claims_and_rows():
+    rows = [row("2025-05-01T11:00:00Z", text="the report was filed"), row("2025-05-01T11:30:00Z", text="other note")]
+    cs = [claim(), claim()]
+    cs[1].claim_id = "c2"
+    return cs, rows
+
+
+def test_run_checks_gives_one_verdict_per_claim_named_for_the_judge():
+    cs, rows = claims_and_rows()
+    out = run_checks(cs, rows, lambda p, t: {"verdict": "unverifiable"}, "vendor-x")
+    assert [(v.claim_id, v.judge) for v in out] == [("c1", "vendor-x"), ("c2", "vendor-x")]
+
+
+def test_run_checks_records_a_bad_reply_and_carries_on_when_asked():
+    cs, rows = claims_and_rows()
+    replies = iter([ReplyNotJSON("oops"), {"verdict": "unverifiable"}])
+
+    def caller(p, t):
+        r = next(replies)
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+    failed = []
+    out = run_checks(cs, rows, caller, "j", failed=failed)
+    assert failed == ["c1"] and [v.claim_id for v in out] == ["c2"]
+
+
+def test_run_checks_stops_on_a_bad_reply_by_default():
+    cs, rows = claims_and_rows()
+
+    def caller(p, t):
+        raise ReplyNotJSON("oops")
+
+    with pytest.raises(ReplyNotJSON):
+        run_checks(cs, rows, caller, "j")
+
+
+def test_requests_match_what_a_run_sends_so_a_cached_rerun_makes_no_call():
+    cs, rows = claims_and_rows()
+    sent = []
+
+    def transport(spec, system, user):
+        sent.append((system, user))
+        return Completion('{"verdict": "unverifiable"}', 10, 5)
+
+    client = ModelClient(ModelSpec("fake", "m", usd_per_mtok_in=1.0, usd_per_mtok_out=1.0), transport, cache_path=":memory:", mode="live")
+    reqs = checker_requests(cs, rows)
+    assert client.estimate(reqs).n_live == 1  # the two claims are identical, so one request
+    run_checks(cs, rows, client.as_caller(), "j")
+    assert sorted(set(sent)) == sorted(set(reqs)) and client.estimate(reqs).n_live == 0
+
+
+def test_checker_specs_need_two_vendors(tmp_path):
+    cfg = tmp_path / "c.toml"
+    cfg.write_text('[checkers.a]\nvendor="v1"\nmodel="m1"\n[checkers.b]\nvendor="v1"\nmodel="m2"\n')
+    with pytest.raises(ValueError, match="different vendors"):
+        checker_specs(cfg)
+    cfg.write_text('[checkers.a]\nvendor="v1"\nmodel="m1"\n')
+    with pytest.raises(ValueError, match="two"):
+        checker_specs(cfg)
+    cfg.write_text('[checkers.a]\nvendor="v1"\nmodel="m1"\nusd_per_mtok_in=3.0\nusd_per_mtok_out=15.0\n[checkers.b]\nvendor="v2"\nmodel="m2"\n')
+    specs = checker_specs(cfg)
+    assert specs["a"].label == "v1/m1" and specs["a"].usd_per_mtok_in == 3.0 and specs["b"].vendor == "v2"

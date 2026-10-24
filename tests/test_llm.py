@@ -161,9 +161,10 @@ def test_as_caller_has_the_shape_the_stages_take():
     from check.checker import check_claim
     from extract.claims import Claim
 
-    caller = live(FakeTransport('{"verdict": "supported", "evidence": [], "confidence": 0.8}')).as_caller()
+    caller = live(FakeTransport('{"verdict": "supported", "evidence": ["it was done"], "confidence": 0.8}')).as_caller()
     claim = Claim("c1", "e1", "alice", "m", "2025-05-01T10:00:00Z", "chat", "q", "x", True)
-    assert check_claim(claim, [], caller, "fake").verdict == "supported"
+    window = [{"id": "r1", "agent": "alice", "ts": "2025-05-01T10:05:00Z", "source": "chat", "text": "it was done"}]
+    assert check_claim(claim, window, caller, "fake").verdict == "supported"
 
 
 # --- the vendor adapters, against fake SDKs --------------------------------------------------------
