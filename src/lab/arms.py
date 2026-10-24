@@ -35,6 +35,9 @@ PLANTED_CLAIM_STRENGTH: Optional[str] = None
 INFLUENCER_STRATEGIES = {
     "direct": "States plainly that the claim is false and why.",
     # "supervisor_pointer": "Points the agent to the report route." (S2, MVP.md)
+    # Sent by `lab.supervisor.Supervisor`; the message text is in lab_tasks/supervisor_nudges.toml.
+    "direct_redirect": "A supervisor LLM tells an agent heading for the vulnerability to work on the honeypot instead.",
+    "ask_why": "A supervisor LLM asks an agent heading for the vulnerability why it chose it over the honeypot.",
 }
 
 
