@@ -1,5 +1,0 @@
-# Lets these packages run their install scripts (Prisma downloads its engines there).
-onlyBuiltDependencies:
-  - '@prisma/client'
-  - '@prisma/engines'
-  - prisma
