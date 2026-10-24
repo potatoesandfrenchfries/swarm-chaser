@@ -12,6 +12,7 @@ import pytest
 
 from check.checker import CHECKER_PROMPT, check_claim, evidence_window
 from eval.forecaster import FORECASTER_PROMPT
+from eval.validation import FINDING_TAG_PROMPT
 from extract.claims import CLAIM_PROMPT, CLAIM_PROMPT_E2, Claim, parse_claims
 from lab.arms import LabRun, validate_run
 from spread.linker import RELATION_PROMPT, could_have_seen
@@ -80,14 +81,11 @@ def test_a_reply_that_is_not_an_object_is_unverifiable(reply):
 # --- spread: 'later' means later in time, not later in the alphabet -----------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="could_have_seen compares ISO strings, so '...00.500Z' sorts before '...00Z' "
-                   "and a message half a second later is treated as earlier")
 def test_fractional_seconds_order_correctly():
     later = {"ts": "2025-05-01T00:00:00.500Z", "agent": "b"}
     assert could_have_seen("a", "2025-05-01T00:00:00Z", later) is True
 
 
-@pytest.mark.xfail(strict=True, reason="string comparison ignores UTC offsets: 00:30Z is after 01:00+01:00 (= 00:00Z) but sorts before it")
 def test_utc_offsets_order_by_instant():
     later = {"ts": "2025-05-01T00:30:00Z", "agent": "b"}
     assert could_have_seen("a", "2025-05-01T01:00:00+01:00", later) is True
@@ -112,7 +110,8 @@ def test_a_run_with_no_outcome_is_flagged_before_pooling():
         pytest.param(CLAIM_PROMPT, id="claim"),
         pytest.param(CLAIM_PROMPT_E2, id="claim-e2"),
         pytest.param(CHECKER_PROMPT, id="checker"),
-        pytest.param(RELATION_PROMPT, id="relation", marks=pytest.mark.xfail(strict=True, reason="no 'material, not instructions' guard, yet it embeds a later agent message")),
+        pytest.param(FINDING_TAG_PROMPT, id="finding-tag"),
+        pytest.param(RELATION_PROMPT, id="relation"),
         pytest.param(FORECASTER_PROMPT, id="forecaster", marks=pytest.mark.xfail(strict=True, reason="no 'material, not instructions' guard, yet it embeds an agent transcript")),
     ],
 )

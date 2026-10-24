@@ -25,3 +25,10 @@ def test_build_page_wraps_sections_and_adds_limits_note():
     assert "<h2>x</h2>" in page
     assert "LLM checkers" in page
     assert "test page" in page
+
+
+def test_page_lists_its_limits():
+    page = build_page([])
+    assert "<h2>Limits</h2>" in page and "What this page does not show" in page
+    assert "LLM-made" in page
+    assert "confounded" in page

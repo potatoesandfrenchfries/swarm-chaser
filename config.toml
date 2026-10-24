@@ -1,0 +1,11 @@
+# Frozen prompt hashes (MVP.md M13; battery config.yaml freeze pattern, MIT). TOML so src/ reads
+# it with the stdlib (src/ is stdlib-only: tests/test_pipeline_contract.py).
+#
+# One entry per frozen prompt, added by the prompt's owner when they freeze it:
+#   key   = "<module>:<ATTRIBUTE>", a string constant importable from src/
+#   value = its sha256; `uv run python src/freeze.py <module>:<ATTRIBUTE>` prints the line to add
+#
+# tests/test_freeze.py fails if a registered prompt's text changes without its hash. Changing a
+# frozen prompt means a new variant name (pipeline-rules), not an edited hash.
+
+[prompts]
