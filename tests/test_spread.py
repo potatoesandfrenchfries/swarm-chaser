@@ -1,6 +1,7 @@
 from check.checker import Verdict
 from extract.claims import Claim
-from spread.linker import SpreadEdge, baseline_link, could_have_seen, model_link, spread_share
+from llm.client import Completion, ModelClient, ModelSpec
+from spread.linker import SpreadEdge, baseline_link, could_have_seen, model_link, relation_requests, spread_share
 
 
 def claim(ts="2025-05-01T00:00:00Z", agent="a", quote="the quarterly report showed a sharp decline in revenue"):
@@ -56,3 +57,30 @@ def test_spread_share_compares_false_against_supported():
     shares = spread_share(verdicts, edges, "repeats")
     assert shares["contradicted"] == 1.0
     assert shares["supported"] == 0.0
+
+
+def test_relation_requests_lists_one_call_per_claim_and_eligible_row():
+    rows = [row("r1", "2025-05-01T01:00:00Z"), row("r2", "2025-05-01T02:00:00Z", agent="a"), row("r3", "2025-04-30T00:00:00Z")]
+    requests = relation_requests([claim()], rows)
+    assert len(requests) == 1  # r2 is the claim's own agent, r3 is earlier
+    seen = []
+    model_link(claim(), rows, lambda p, t: seen.append((p, t)) or {"relation": "none"})
+    assert requests == seen  # the estimate covers exactly what the linker sends
+
+
+def test_model_link_through_the_cached_client_makes_no_calls_on_a_rerun(tmp_path):
+    calls = []
+
+    def transport(spec, system, user):
+        calls.append(user)
+        return Completion('{"relation": "corrects"}', 10, 5)
+
+    spec = ModelSpec("test", "m")
+    rows = [row("r1", "2025-05-01T01:00:00Z", text="that is wrong, revenue grew")]
+    live = ModelClient(spec, transport, cache_path=tmp_path / "llm.sqlite", mode="live")
+    first = model_link(claim(), rows, live.as_caller())
+    live.close()
+
+    offline = ModelClient(spec, cache_path=tmp_path / "llm.sqlite")
+    assert model_link(claim(), rows, offline.as_caller()) == first
+    assert [e.relation for e in first] == ["corrects"] and len(calls) == 1
