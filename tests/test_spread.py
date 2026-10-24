@@ -15,6 +15,7 @@ from spread.linker import (
     sample_for_hand_check,
     spread_share,
     spread_share_intervals,
+    spread_svg,
 )
 
 
@@ -169,3 +170,18 @@ def test_documented_case_without_a_correction_says_how_long_it_went_unchallenged
     case = documented_case(c, [timed_edge("c1", "r1", "repeats", "bob", "2025-05-04T00:00:00Z")])
     assert (case["who_corrected"], case["duration"]) == ("nobody", "unchallenged for at least 3.0 days")
     assert documented_case(c, [])["duration"] == "no later links"
+
+
+def test_spread_svg_draws_one_row_per_relation_and_verdict_with_n():
+    verdicts = [Verdict(f"c{i}", "contradicted" if i < 4 else "supported", [], "j", 0.9) for i in range(10)]
+    edges = [edge("c0", "r1"), edge("c5", "r2", "corrects")]
+    intervals = {"repeated": spread_share_intervals(verdicts, edges, "repeats"), "corrected <x>": spread_share_intervals(verdicts, edges, "corrects")}
+    svg = spread_svg(intervals)
+    assert svg.count("<circle") == 4 and "n=4" in svg and "n=6" in svg
+    assert "corrected &lt;x&gt;, supported" in svg and "<script" not in svg
+
+
+def test_section_3_spread_opens_with_the_chart_only_when_given_intervals():
+    verdicts = [Verdict("c1", "contradicted", [], "j", 0.9)]
+    with_chart = section_3_spread({"contradicted": 1.0}, [], {"contradicted": 0.0}, intervals={"repeated": spread_share_intervals(verdicts, [edge("c1", "r1")], "repeats")})
+    assert "<svg" in with_chart and "<svg" not in section_3_spread({"contradicted": 1.0}, [], {"contradicted": 0.0})

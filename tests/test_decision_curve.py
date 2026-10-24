@@ -14,6 +14,7 @@ from eval.decision_curve import (
 )
 from extract.claims import Claim, freeze_hash
 from freeze import load_registry
+from report.page import section_5_decision_curve
 
 
 def test_default_score_ranks_low_confidence_first():
@@ -101,3 +102,14 @@ def test_curve_svg_draws_one_labelled_line_per_curve():
 def test_curve_svg_skips_points_without_false_claims():
     svg = curve_svg({"random": random_curve([Verdict("c1", "supported", [], "j", 0.5)])})
     assert 'points=""' in svg
+
+
+def test_section_5_shows_the_chart_and_a_budget_table_not_one_row_per_claim():
+    out = section_5_decision_curve([], compare_rankings(ten_verdicts(), {"checker confidence": default_score}))
+    assert "<svg" in out and out.count("<tr>") == 3  # header, checker confidence, random
+    assert "Caught at 20% reviewed" in out and "100%" in out
+
+
+def test_section_5_without_a_comparison_draws_the_one_curve_and_handles_no_claims():
+    assert "<svg" in section_5_decision_curve(decision_curve(ten_verdicts()))
+    assert "No claims to rank" in section_5_decision_curve([])

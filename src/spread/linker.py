@@ -220,3 +220,36 @@ def documented_case(claim, edges: list[SpreadEdge]) -> dict:
     else:
         duration = "no later links"
     return {"claim": claim.quote, "who_said_it": claim.agent, "who_repeated": who(spread), "who_corrected": who(pushback), "duration": duration}
+
+
+def spread_svg(intervals: dict, width: int = 420) -> str:
+    """Dot-and-whisker chart of spread shares: one row per (relation, verdict), the dot at the
+    share and the whisker across its Wilson interval, with n. `intervals` maps a relation label,
+    e.g. "repeated", to the output of `spread_share_intervals`. Inline SVG with no script, for
+    the results page.
+    """
+    import html
+
+    rows = [(label, verdict, s) for label, by_verdict in intervals.items() for verdict, s in by_verdict.items() if s["n"]]
+    left, right, row_h, top = 190, 50, 22, 24
+    height = top + row_h * len(rows) + 30
+    plot_w = width - left - right
+
+    def x(share):
+        return left + share * plot_w
+
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" style="max-width:100%;height:auto" role="img" aria-labelledby="spread-title">',
+        '<title id="spread-title">Share of claims later spread or corrected, false against supported, with 95% intervals</title>',
+    ]
+    for share in (0.0, 0.5, 1.0):
+        parts.append(f'<line x1="{x(share):.1f}" y1="{top - 8}" x2="{x(share):.1f}" y2="{height - 26}" stroke="currentColor" stroke-opacity="0.25"/>')
+        parts.append(f'<text x="{x(share):.1f}" y="{height - 12}" text-anchor="middle" font-size="10" fill="currentColor">{share:.0%}</text>')
+    for i, (label, verdict, s) in enumerate(rows):
+        y = top + row_h * i + row_h / 2
+        parts.append(f'<text x="{left - 8}" y="{y + 4:.1f}" text-anchor="end" font-size="11" fill="currentColor">{html.escape(f"{label}, {verdict}")}</text>')
+        parts.append(f'<line x1="{x(s["low"]):.1f}" y1="{y:.1f}" x2="{x(s["high"]):.1f}" y2="{y:.1f}" stroke="currentColor" stroke-width="2"/>')
+        parts.append(f'<circle cx="{x(s["share"]):.1f}" cy="{y:.1f}" r="4" fill="currentColor"/>')
+        parts.append(f'<text x="{width - right + 6}" y="{y + 4:.1f}" font-size="10" fill="currentColor">n={s["n"]}</text>')
+    parts.append("</svg>")
+    return "".join(parts)

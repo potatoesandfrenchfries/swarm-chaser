@@ -129,7 +129,7 @@ def curve_svg(curves: dict, width: int = 360, height: int = 240) -> str:
         return f"{pad + p['share_reviewed'] * (width - 2 * pad):.1f},{height - pad - p['share_caught'] * (height - 2 * pad):.1f}"
 
     parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" aria-labelledby="dc-title">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" style="max-width:100%;height:auto" role="img" aria-labelledby="dc-title">',
         '<title id="dc-title">False claims caught against claims reviewed</title>',
         f'<line x1="{pad}" y1="{height - pad}" x2="{width - pad}" y2="{height - pad}" stroke="currentColor"/>',
         f'<line x1="{pad}" y1="{pad}" x2="{pad}" y2="{height - pad}" stroke="currentColor"/>',
