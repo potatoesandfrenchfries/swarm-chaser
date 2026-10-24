@@ -1,9 +1,13 @@
 import json
 import random
 from dataclasses import replace
+from pathlib import Path
+
+import pytest
 
 from check.checker import Verdict
 from eval.validation import (
+    SEED_FINDINGS_PATH,
     agreement_report,
     cohen_kappa,
     finding_date_range,
@@ -159,3 +163,14 @@ def test_locate_findings_compares_days_in_utc():
     findings = [{**FINDINGS[0], "agents": ["Opus 5"]}]
     # 2025-05-02 00:30 at +01:00 is still 2025-05-01 in UTC, the zone the findings use.
     assert locate_findings(findings, [replace(claim("q"), agent="Claude Opus 5", ts="2025-05-02T00:30:00+01:00")]) == {"M001"}
+
+
+_REAL_FINDINGS = Path(__file__).resolve().parent.parent / SEED_FINDINGS_PATH
+
+
+@pytest.mark.skipif(not _REAL_FINDINGS.exists(), reason=f"real seed findings not cloned to {SEED_FINDINGS_PATH} (gitignored, dataset terms)")
+def test_real_seed_findings_load_and_every_date_parses():
+    findings = load_seed_findings(_REAL_FINDINGS)
+    assert len(findings) == 96  # 84 keep + 12 rewrite, per scope.md
+    assert len({f["id"] for f in findings}) == 96
+    assert [f["id"] for f in findings if finding_date_range(f["behavior_dates"]) is None] == []
