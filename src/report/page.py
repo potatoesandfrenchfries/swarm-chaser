@@ -75,17 +75,21 @@ def section_2_by_model_month(headline_data: dict) -> str:
     )
 
 
-def section_3_spread(spread_shares: dict, documented_cases: list[dict], baseline_shares: dict) -> str:
+def section_3_spread(spread_shares: dict, documented_cases: list[dict], baseline_shares: dict, intervals: dict | None = None) -> str:
     """MVP.md Goal item 3: spread result plus documented cases, against the string-match baseline.
-    CUSTOMISE: `documented_cases` is a list of {claim, who_said_it, who_repeated, who_corrected,
-    duration} dicts you fill in by hand from the three cases M7 asks for — picking and writing
-    those up is a manual, read-the-transcript step with no code to template.
+    `documented_cases` comes from `spread.linker.documented_case`, one per case picked by hand.
+    `intervals` maps a relation label (e.g. "repeated", "corrected") to
+    `spread.linker.spread_share_intervals`; when given, the section opens with that chart.
     """
+    from spread.linker import spread_svg
+
+    chart = spread_svg(intervals) if intervals else ""
     cases_rows = [[c.get(k, "") for k in ("claim", "who_said_it", "who_repeated", "who_corrected", "duration")] for c in documented_cases]
     cases_table = _table(["Claim", "Who said it", "Who repeated", "Who corrected", "Duration"], cases_rows)
     compare_rows = [[v, f"{spread_shares.get(v, float('nan')):.0%}", f"{baseline_shares.get(v, float('nan')):.0%}"] for v in spread_shares]
     return (
         "<h2>3. Spread</h2>"
+        f"{chart}"
         f"{_table(['Verdict', 'Model-linker repeated/corrected share', 'String-match baseline'], compare_rows)}"
         f"<h3>Documented cases</h3>{cases_table}"
     )
