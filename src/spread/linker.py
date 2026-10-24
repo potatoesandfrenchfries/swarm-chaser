@@ -28,7 +28,7 @@ def _ngrams(text: str, n: int = NGRAM_SIZE) -> set[tuple[str, ...]]:
     return {tuple(words[i : i + n]) for i in range(max(0, len(words) - n + 1))}
 
 
-@dataclass
+@dataclass(frozen=True)  # hashable, so edges can key a hand-check dict
 class SpreadEdge:
     """One row of the `Spread edge` record shape in scope.md section 5."""
 
@@ -119,12 +119,59 @@ def model_link(
     return edges
 
 
-def spread_share(verdicts: list, edges: list[SpreadEdge], relation: str) -> dict:
-    """Share of claims (by verdict) that have at least one edge of `relation`. Used to compare
-    false claims against supported claims (M7's headline comparison).
+def spread_share_intervals(verdicts: list, edges: list[SpreadEdge], relation: str) -> dict:
+    """Per verdict: how many claims have at least one edge of `relation` (`k` of `n`), the share,
+    and its Wilson interval. Used to compare false claims against supported claims (M7).
     """
+    from report.headline import wilson
+
     claims_with = {e.claim_id for e in edges if e.relation == relation}
     by_verdict: dict[str, list[int]] = {}
     for v in verdicts:
         by_verdict.setdefault(v.verdict, []).append(1 if v.claim_id in claims_with else 0)
-    return {verdict: (sum(hits) / len(hits) if hits else float("nan")) for verdict, hits in by_verdict.items()}
+    out = {}
+    for verdict, hits in by_verdict.items():
+        share, low, high = wilson(sum(hits), len(hits))
+        out[verdict] = {"k": sum(hits), "n": len(hits), "share": share, "low": low, "high": high}
+    return out
+
+
+def spread_share(verdicts: list, edges: list[SpreadEdge], relation: str) -> dict:
+    """The share alone from `spread_share_intervals`, per verdict."""
+    return {verdict: s["share"] for verdict, s in spread_share_intervals(verdicts, edges, relation).items()}
+
+
+def _edge_key(e: SpreadEdge) -> tuple:
+    return (e.claim_id, e.later_message_id, e.relation)
+
+
+def compare_linkers(model_edges: list[SpreadEdge], baseline_edges: list[SpreadEdge]) -> dict:
+    """How far the two linkers agree on which later messages link to which claims.
+
+    The baseline labels every match "repeats", so edges are compared by (claim, message) for the
+    overlap. Agreement is not correctness: use `precision` on a hand-checked sample for that.
+    """
+    model = {(e.claim_id, e.later_message_id) for e in model_edges}
+    baseline = {(e.claim_id, e.later_message_id) for e in baseline_edges}
+    return {"n_both": len(model & baseline), "n_model_only": len(model - baseline), "n_baseline_only": len(baseline - model)}
+
+
+def sample_for_hand_check(edges: list[SpreadEdge], n: int, seed: int = 0) -> list[SpreadEdge]:
+    """A reproducible random sample of edges for a person to judge. Sorted first so the sample
+    depends only on the edges and the seed, not on the order they came in.
+    """
+    import random
+
+    ordered = sorted(set(edges), key=_edge_key)
+    return random.Random(seed).sample(ordered, min(n, len(ordered)))
+
+
+def precision(judged: dict) -> dict:
+    """Precision of a linker on a hand-checked sample: `judged` maps each sampled edge to True
+    (the relation is right) or False. This is the only number here that says whether links are
+    correct, and it holds only for the sample read.
+    """
+    from report.headline import wilson
+
+    share, low, high = wilson(sum(judged.values()), len(judged))
+    return {"n_judged": len(judged), "n_correct": sum(judged.values()), "precision": share, "low": low, "high": high}

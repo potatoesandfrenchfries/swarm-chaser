@@ -1,7 +1,18 @@
 from check.checker import Verdict
 from extract.claims import Claim
 from llm.client import Completion, ModelClient, ModelSpec
-from spread.linker import SpreadEdge, baseline_link, could_have_seen, model_link, relation_requests, spread_share
+from spread.linker import (
+    SpreadEdge,
+    baseline_link,
+    compare_linkers,
+    could_have_seen,
+    model_link,
+    precision,
+    relation_requests,
+    sample_for_hand_check,
+    spread_share,
+    spread_share_intervals,
+)
 
 
 def claim(ts="2025-05-01T00:00:00Z", agent="a", quote="the quarterly report showed a sharp decline in revenue"):
@@ -84,3 +95,36 @@ def test_model_link_through_the_cached_client_makes_no_calls_on_a_rerun(tmp_path
     offline = ModelClient(spec, cache_path=tmp_path / "llm.sqlite")
     assert model_link(claim(), rows, offline.as_caller()) == first
     assert [e.relation for e in first] == ["corrects"] and len(calls) == 1
+
+
+def edge(claim_id, msg, relation="repeats"):
+    return SpreadEdge(claim_id=claim_id, later_message_id=msg, relation=relation, agent="b", ts="2025-05-01T01:00:00Z")
+
+
+def test_spread_share_intervals_gives_counts_and_a_wilson_interval_per_verdict():
+    verdicts = [Verdict(f"c{i}", "contradicted" if i < 4 else "supported", [], "j", 0.9) for i in range(10)]
+    out = spread_share_intervals(verdicts, [edge("c0", "r1"), edge("c1", "r2"), edge("c5", "r3", "corrects")], "repeats")
+    assert (out["contradicted"]["k"], out["contradicted"]["n"], out["contradicted"]["share"]) == (2, 4, 0.5)
+    assert (out["supported"]["k"], out["supported"]["n"]) == (0, 6)  # c5's edge is a correction, not a repeat
+    assert out["contradicted"]["low"] < 0.5 < out["contradicted"]["high"]
+    assert spread_share(verdicts, [edge("c0", "r1"), edge("c1", "r2")], "repeats") == {"contradicted": 0.5, "supported": 0.0}
+
+
+def test_compare_linkers_counts_overlap_by_claim_and_message_whatever_the_relation():
+    model = [edge("c1", "r1", "corrects"), edge("c1", "r2", "endorses")]
+    baseline = [edge("c1", "r1"), edge("c2", "r9")]
+    assert compare_linkers(model, baseline) == {"n_both": 1, "n_model_only": 1, "n_baseline_only": 1}
+
+
+def test_sample_for_hand_check_is_reproducible_and_ignores_input_order():
+    edges = [edge(f"c{i}", f"r{i}") for i in range(30)]
+    first = sample_for_hand_check(edges, 5, seed=1)
+    assert first == sample_for_hand_check(list(reversed(edges)), 5, seed=1)
+    assert len(first) == 5 and len(sample_for_hand_check(edges[:3], 5)) == 3
+
+
+def test_precision_scores_hand_judgements_with_an_interval():
+    judged = {edge("c1", "r1"): True, edge("c2", "r2"): True, edge("c3", "r3"): False, edge("c4", "r4"): True}
+    p = precision(judged)
+    assert (p["n_judged"], p["n_correct"], p["precision"]) == (4, 3, 0.75)
+    assert p["low"] < 0.75 < p["high"]
