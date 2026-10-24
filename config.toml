@@ -15,6 +15,7 @@
 "check.checker:CHECKER_PROMPT" = "5e81a1a009e43b971a6cf02c56034ab78fbaa3e47af95a17df56b87137769820"
 "extract.claims:CLAIM_PROMPT" = "01d34c1ceb0792d0fe84aa4d2ae79b390d8be4283717cdf2709efe20a4eaa9da"
 "extract.claims:CLAIM_PROMPT_E2" = "31f7d6e925afddc6f356d636f39e083f3d065da0e3c59afa9de0f8fc3960380d"
+"lab.supervisor:SUPERVISOR_PROMPT" = "7cde04ee920869364e223a9ad98ac5f21d97c7a79c0ced322055c242a732b200"
 
 # One budget for every paid call (issue #19): three pounds. src/llm/budget.py turns it into dollars and
 # subtracts what the cache says is already spent. usd_per_gbp is an ASSUMED rate, kept a little low so the
