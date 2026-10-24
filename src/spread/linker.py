@@ -201,10 +201,11 @@ def _duration(start_ts: str, end_ts: str) -> str:
     return f"{seconds / 3600:.1f} hours" if seconds < 2 * 86400 else f"{seconds / 86400:.1f} days"
 
 
-def documented_case(claim, edges: list[SpreadEdge]) -> dict:
+def documented_case(claim, edges: list[SpreadEdge], record: str | None = None) -> dict:
     """One case in the shape `report.page.section_3_spread` takes. Duration runs from the claim
     to its first correction or dispute; with none, it says how long the claim went unchallenged
-    up to the last time it was spread.
+    up to the last time it was spread. Pass the chunk the claim was extracted from as `record`
+    and the page checks the quote is an exact substring of it before building.
     """
     mine = sorted((e for e in edges if e.claim_id == claim.claim_id), key=lambda e: _parse_ts(e.ts))
     spread = [e for e in mine if e.relation in SPREADS]
@@ -219,7 +220,10 @@ def documented_case(claim, edges: list[SpreadEdge]) -> dict:
         duration = f"unchallenged for at least {_duration(claim.ts, spread[-1].ts)}"
     else:
         duration = "no later links"
-    return {"claim": claim.quote, "who_said_it": claim.agent, "who_repeated": who(spread), "who_corrected": who(pushback), "duration": duration}
+    case = {"claim": claim.quote, "who_said_it": claim.agent, "who_repeated": who(spread), "who_corrected": who(pushback), "duration": duration}
+    if record is not None:
+        case["record"] = record
+    return case
 
 
 def spread_svg(intervals: dict, width: int = 420) -> str:

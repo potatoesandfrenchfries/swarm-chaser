@@ -13,7 +13,7 @@ it, rather than duplicating the assembly logic in two places.
 import html
 from pathlib import Path
 
-from report.quotes import REGISTRY, bad_quotes
+from report.quotes import REGISTRY, bad_quotes, register_quote
 
 LIMITS_NOTE = (
     "All verdicts on this page come from LLM checkers, not human review. The perturbation "
@@ -78,12 +78,18 @@ def section_2_by_model_month(headline_data: dict) -> str:
 def section_3_spread(spread_shares: dict, documented_cases: list[dict], baseline_shares: dict, intervals: dict | None = None) -> str:
     """MVP.md Goal item 3: spread result plus documented cases, against the string-match baseline.
     `documented_cases` comes from `spread.linker.documented_case`, one per case picked by hand.
-    `intervals` maps a relation label (e.g. "repeated", "corrected") to
-    `spread.linker.spread_share_intervals`; when given, the section opens with that chart.
+    A case carrying its source `record` has its quote registered, so `build_page` refuses to
+    build if the quote is not verbatim. `intervals` maps a relation label (e.g. "repeated",
+    "corrected") to `spread.linker.spread_share_intervals`; when given, the section opens with
+    that chart.
     """
     from spread.linker import spread_svg
 
     chart = spread_svg(intervals) if intervals else ""
+    for c in documented_cases:
+        if "record" in c:
+            register_quote("documented cases", c["claim"], c["record"])
+    shortfall = f"<p>{len(documented_cases)} of the three documented cases M7 asks for.</p>" if len(documented_cases) < 3 else ""
     cases_rows = [[c.get(k, "") for k in ("claim", "who_said_it", "who_repeated", "who_corrected", "duration")] for c in documented_cases]
     cases_table = _table(["Claim", "Who said it", "Who repeated", "Who corrected", "Duration"], cases_rows)
     compare_rows = [[v, f"{spread_shares.get(v, float('nan')):.0%}", f"{baseline_shares.get(v, float('nan')):.0%}"] for v in spread_shares]
@@ -91,7 +97,7 @@ def section_3_spread(spread_shares: dict, documented_cases: list[dict], baseline
         "<h2>3. Spread</h2>"
         f"{chart}"
         f"{_table(['Verdict', 'Model-linker repeated/corrected share', 'String-match baseline'], compare_rows)}"
-        f"<h3>Documented cases</h3>{cases_table}"
+        f"<h3>Documented cases</h3>{shortfall}{cases_table}"
     )
 
 
