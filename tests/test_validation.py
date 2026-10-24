@@ -225,3 +225,12 @@ def test_slice_finding_ids_reads_every_episode_in_slice_toml():
     config = {"findings": {"ep1": ["M001", "M002"], "ep2": ["M002", "M003"]}}
     assert slice_finding_ids(config) == {"M001", "M002", "M003"}
     assert slice_finding_ids()  # slice.toml lists the findings inside the chosen episodes
+
+
+def test_agreement_report_counts_a_claim_judged_twice_once_and_reports_the_duplicate():
+    a = [Verdict("c1", "supported", [], "j1", 0.9), Verdict("c1", "contradicted", [], "j1", 0.9), Verdict("c2", "supported", [], "j1", 0.9)]
+    b = [Verdict("c1", "supported", [], "j2", 0.8), Verdict("c2", "contradicted", [], "j2", 0.8), Verdict("c2", "supported", [], "j2", 0.8)]
+    report = agreement_report(a, b)
+    assert (report["n_paired"], report["n_only_a"], report["n_only_b"]) == (2, 0, 0)  # c1 not paired twice
+    assert (report["n_duplicate_a"], report["n_duplicate_b"]) == (1, 1)
+    assert report["agreement"] == 0.5  # first verdicts: c1 agrees, c2 does not
