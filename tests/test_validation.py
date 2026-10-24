@@ -20,6 +20,7 @@ from eval.validation import (
     validation_table,
 )
 from extract.claims import Claim
+from report.page import section_4_validation
 
 
 def claim(quote):
@@ -198,3 +199,15 @@ def test_validation_table_shows_missing_numbers_and_flags_low_kappa():
 
     low = validation_table(empty_perturbation, {"n_paired": 10, "agreement": 0.5, "kappa": 0.1, "unreliable": True}, empty_recall, spot_check)
     assert "unreliable" in low[1]["note"]
+
+
+def test_section_4_shows_the_validation_table_with_n_and_limits():
+    rows = validation_table(
+        {"n_perturbable": 300, "n_caught": 240, "share_caught": 0.8},
+        {"n_paired": 500, "agreement": 0.9, "kappa": 0.72, "unreliable": False},
+        {"n_seed_findings": 30, "n_located": 12, "recall": 0.4},
+        {"n_read": 20, "note": "two verdicts cited the <wrong> day"},
+    )
+    out = section_4_validation({}, table=rows)
+    assert out.count("<tr>") == 5 and "What it does not show" in out
+    assert "&lt;wrong&gt;" in out and "<wrong>" not in out
