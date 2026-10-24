@@ -91,8 +91,8 @@ def relation_classifier(prompt, content):
 # --- the pipeline ----------------------------------------------------------------------------------
 
 
-def run_pipeline(messages_path, memories_path):
-    messages, memories = load_messages(messages_path), load_memories(memories_path)
+def run_pipeline(messages_path, memories_path, lookup):
+    messages, memories = load_messages(messages_path, lookup), load_memories(memories_path, lookup)
     join = join_report(messages, memories)
     rows = episode_rows(messages, memories, "e1")
     model_of = {r["agent"]: r["model"] for r in rows}
@@ -123,8 +123,8 @@ def run_pipeline(messages_path, memories_path):
 
 
 @pytest.fixture
-def run(village):
-    return run_pipeline(*village)
+def run(village, lookup):
+    return run_pipeline(*village, lookup)
 
 
 # --- stage by stage ----------------------------------------------------------------------------------
@@ -271,8 +271,8 @@ def test_the_page_shows_every_quote_it_prints_as_part_of_the_record(run):
     assert shown == [ALICE_CLAIM] and all(q in record for q in shown)
 
 
-def test_a_rerun_from_the_same_files_gives_an_identical_page(village):
+def test_a_rerun_from_the_same_files_gives_an_identical_page(village, lookup):
     """M13: one command, same inputs, same output. No timestamps, no iteration-order drift."""
-    first, second = assemble_page(run_pipeline(*village)), assemble_page(run_pipeline(*village))
+    first, second = assemble_page(run_pipeline(*village, lookup)), assemble_page(run_pipeline(*village, lookup))
     assert first == second
     assert freeze_hash(first) == freeze_hash(second)

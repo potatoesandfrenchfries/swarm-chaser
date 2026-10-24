@@ -43,3 +43,36 @@ def test_episode_rows_excludes_other_episodes():
     messages = [msg("m1", episode="e1"), msg("m2", episode="e2")]
     rows = episode_rows(messages, [], "e1")
     assert [r["id"] for r in rows] == ["m1"]
+
+
+# --- against the real export, when a local copy exists -------------------------------------------------
+# The synthetic fixtures use the real column names, but only a real file shows whether the schema has
+# drifted (SCHEMA.md changes between exports). Skipped on CI and for anyone without the gated download
+# in local/hf/ (see MVP.md M1; `hf download aidigestorg/ai-village` then the files named below).
+
+import pytest  # noqa: E402
+
+from conftest import REPO_ROOT  # noqa: E402
+from ingest.village import iter_jsonl, load_lookup, load_messages  # noqa: E402
+
+REAL = REPO_ROOT / "local" / "hf"
+needs_export = pytest.mark.skipif(not all((REAL / f).exists() for f in ("agents.jsonl.gz", "village_goals.jsonl.gz", "chat_messages.jsonl.gz")), reason="no local copy of the village export")
+
+
+@needs_export
+def test_the_real_small_tables_load_and_every_goal_period_has_a_start():
+    lookup = load_lookup(REAL / "agents.jsonl.gz", REAL / "village_goals.jsonl.gz")
+    assert len(lookup.agents) > 1 and len(lookup.episodes) > 1
+    assert [e[1] for e in lookup.episodes] == sorted(e[1] for e in lookup.episodes)
+    assert lookup.episodes[-1][2] is None  # the current goal is ongoing
+
+
+@needs_export
+def test_the_first_real_chat_rows_normalise_with_a_known_agent_and_episode(tmp_path):
+    lookup = load_lookup(REAL / "agents.jsonl.gz", REAL / "village_goals.jsonl.gz")
+    sample = tmp_path / "chat_sample.jsonl"
+    sample.write_text("".join(__import__("json").dumps(r) + "\n" for _, r in zip(range(500), iter_jsonl(REAL / "chat_messages.jsonl.gz"))))
+    stats = {}
+    rows = load_messages(sample, lookup, stats=stats)
+    assert rows and len(rows) + sum(stats.values()) == 500
+    assert all(r["ts"].endswith("Z") and r["agent"] and r["model"] and r["episode_id"] for r in rows)
