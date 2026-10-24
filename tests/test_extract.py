@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from extract.claims import CLAIM_PROMPT, CLAIM_PROMPT_E2, PROMPTS, chunk_rows, freeze_hash, parse_claims, render_row, validate_quote
+from extract.claims import CLAIM_PROMPT, CLAIM_PROMPT_E2, PROMPTS, chunk_rows, freeze_hash, parse_claims, render_row, source_row, validate_quote
 
 
 def row(id, ts="2025-05-01T00:00:00Z", agent="a", source="chat", text="hello world", episode="e1"):
@@ -92,3 +92,55 @@ def test_a_reply_to_either_variant_parses_and_records_which_variant_made_it():
     for name in PROMPTS:
         kept, dropped = parse_claims(reply, chunk, extractor=name)
         assert [c.extractor for c in kept] == [name] and dropped == []
+
+
+# --- claims know which row they came from (M3.1) ------------------------------------------------------
+
+
+def two_rows():
+    return [
+        {**row("m1", ts="2025-05-01T10:00:00.000000Z", agent="alice", text="The build passed with 12 tests green."), "model": "model-x"},
+        {**row("m2", ts="2025-05-01T11:00:00.000000Z", agent="bob", text="Confirming: the build passed with 12 tests green."), "model": "model-y", "source": "memory"},
+    ]
+
+
+def test_a_chunk_carries_the_rows_it_was_built_from():
+    (chunk,) = chunk_rows(two_rows())
+    assert [r["id"] for r in chunk["rows"]] == ["m1", "m2"]
+    assert set(chunk["rows"][0]) == {"id", "agent", "model", "ts", "source", "text"}
+
+
+def test_a_kept_claim_takes_speaker_model_time_and_source_from_its_row_not_from_the_model():
+    (chunk,) = chunk_rows(two_rows())
+    reply = {"claims": [{"quote": "Confirming: the build passed", "agent": "the wrong name", "claim_type": "self-report", "checkable": True}]}
+    (c,), dropped = parse_claims(reply, chunk)
+    assert dropped == []
+    assert (c.agent, c.model, c.ts, c.source, c.row_id) == ("bob", "model-y", "2025-05-01T11:00:00.000000Z", "memory", "m2")
+
+
+def test_when_two_rows_hold_the_quote_the_named_speaker_wins_else_the_first():
+    (chunk,) = chunk_rows(two_rows())
+    quote = "build passed with 12 tests green."
+    assert source_row(quote, chunk, "bob")["id"] == "m2"
+    assert source_row(quote, chunk, "nobody")["id"] == "m1"
+    assert source_row("no such text", chunk) is None
+
+
+def test_a_quote_that_runs_across_two_messages_is_dropped_because_it_has_no_one_speaker_or_time():
+    (chunk,) = chunk_rows(two_rows())
+    spanning = chunk["text"][chunk["text"].index("12 tests green."): chunk["text"].index("Confirming")]
+    kept, dropped = parse_claims({"claims": [{"quote": spanning}]}, chunk)
+    assert kept == [] and dropped[0]["reason"] == "quote_not_in_one_row"
+
+
+def test_a_quote_that_includes_the_header_line_is_not_in_one_row_either():
+    (chunk,) = chunk_rows(two_rows())
+    header_quote = chunk["text"].splitlines()[0]
+    kept, dropped = parse_claims({"claims": [{"quote": header_quote}]}, chunk)
+    assert kept == [] and dropped[0]["reason"] == "quote_not_in_one_row"
+
+
+def test_a_hand_built_chunk_without_rows_still_parses_with_the_models_agent():
+    chunk = {"chunk_id": "c0", "episode_id": "e1", "agents": ["a"], "text": "agent a said hi"}
+    (c,), _ = parse_claims({"claims": [{"quote": "said hi", "agent": "a"}]}, chunk)
+    assert (c.agent, c.ts, c.row_id) == ("a", "", "")

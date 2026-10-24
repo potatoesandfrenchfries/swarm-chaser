@@ -13,7 +13,7 @@ import pytest
 from check.checker import CHECKER_PROMPT, check_claim, evidence_window
 from eval.forecaster import FORECASTER_PROMPT
 from eval.validation import FINDING_TAG_PROMPT
-from extract.claims import CLAIM_PROMPT, CLAIM_PROMPT_E2, Claim, parse_claims
+from extract.claims import CLAIM_PROMPT, CLAIM_PROMPT_E2, Claim, chunk_rows, parse_claims
 from lab.arms import LabRun, validate_run
 from spread.linker import RELATION_PROMPT, could_have_seen
 
@@ -41,10 +41,11 @@ def test_a_claim_without_a_quote_is_dropped(raw):
     assert kept == [] and len(dropped) == 1
 
 
-@pytest.mark.xfail(strict=True, raises=ValueError, reason="parse_claims leaves ts='' (marked CUSTOMISE), so check.evidence_window raises on every "
-                   "extracted claim until the row's timestamp is looked up")
 def test_an_extracted_claim_can_be_fed_straight_to_the_checker():
-    (c,), _ = parse_claims({"claims": [{"quote": "said hi", "agent": "a"}]}, CHUNK)
+    """Fixed for chunks built by chunk_rows, which carry their rows, so a claim takes the time of the row it came from."""
+    rows = [{"id": "r1", "episode_id": "e1", "agent": "a", "model": "m", "ts": "2025-05-01T00:00:00Z", "source": "chat", "text": "I said hi"}]
+    (c,), _ = parse_claims({"claims": [{"quote": "said hi", "agent": "a"}]}, chunk_rows(rows)[0])
+    assert c.ts == "2025-05-01T00:00:00Z"
     evidence_window(window(), c.ts, c.agent)
 
 

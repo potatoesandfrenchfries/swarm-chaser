@@ -1,17 +1,19 @@
 """Boundaries, empty inputs and the exact behaviour the existing happy-path tests do not pin."""
 
+import gzip
 import json
 import math
+import time
 from pathlib import Path
 
 import pytest
 
 from check.checker import CHECKER_PROMPT, WINDOW_AFTER_SECONDS, WINDOW_BEFORE_SECONDS, Verdict, check_claim, evidence_window
-from conftest import MEMORIES, MESSAGES, write_jsonl
+from conftest import MEMORIES, MESSAGES, chat, memory, write_jsonl
 from eval.forecaster import Prediction, accuracy, auc, brier_score, score_forecaster
 from eval.validation import KAPPA_UNRELIABLE_BELOW, agreement_report, cohen_kappa, known_failure_recall, perturbation_test
 from extract.claims import Claim, chunk_rows, parse_claims
-from ingest.village import JOIN_TOLERANCE_SECONDS, episode_rows, join_report, load_jsonl, load_memories, load_messages
+from ingest.village import JOIN_TOLERANCE_SECONDS, _parse_ts, episode_rows, join_report, load_jsonl, load_memories, load_messages, normalise_ts
 from lab.arms import ARMS, LabRun, acting_rate, handling_result, validate_run
 from report.headline import breakdown, headline, month, sensitivity, shares, wilson
 from report.page import LIMITS_NOTE, build_page, section_3_spread, section_4_validation, section_5_decision_curve, section_6_sandbox, write_page
@@ -29,52 +31,110 @@ def row(id, ts, agent="a", source="chat", text="x", episode="e1"):
 # --- ingest ------------------------------------------------------------------------------------
 
 
-def test_loaders_normalise_both_record_kinds(village):
+def test_loaders_normalise_both_record_kinds(village, lookup):
     messages, memories = village
-    msgs, mems = load_messages(messages), load_memories(memories)
+    msgs, mems = load_messages(messages, lookup), load_memories(memories, lookup)
     assert len(msgs) == len(MESSAGES) and len(mems) == len(MEMORIES)
     assert {r["source"] for r in msgs} == {"chat"} and {r["source"] for r in mems} == {"memory"}
     # Every row has the same shape, which is what lets extract/ chunk chat and memory together.
-    assert {tuple(sorted(r)) for r in msgs + mems} == {("agent", "episode_id", "id", "model", "source", "text", "ts")}
+    assert {tuple(sorted(r)) for r in msgs + mems} == {("agent", "episode_id", "id", "model", "room", "source", "text", "ts")}
     assert msgs[0]["id"] == "m1" and mems[0]["id"] == "k1"
+    assert (msgs[0]["agent"], msgs[0]["model"], msgs[0]["room"], mems[0]["room"]) == ("alice", "model-x", "room1", "")
 
 
-def test_loader_skips_blank_lines_and_keeps_unicode(tmp_path):
-    path = write_jsonl(tmp_path / "m.jsonl", [{"message_id": "m1", "agent": "a", "ts": "2025-05-01T00:00:00Z", "text": "café ✓ 日本語"}], blank_lines=True)
+def test_loader_skips_blank_lines_and_keeps_unicode(tmp_path, lookup):
+    path = write_jsonl(tmp_path / "m.jsonl", [chat("m1", "alice", "2025-05-01 00:00:00", "café ✓ 日本語")], blank_lines=True)
     path.write_text(path.read_text() + "\n   \n", encoding="utf-8")
-    rows = load_messages(path)
+    rows = load_messages(path, lookup)
     assert [r["text"] for r in rows] == ["café ✓ 日本語"]
 
 
-def test_loader_falls_back_to_village_id_and_defaults_missing_optional_fields(tmp_path):
-    path = write_jsonl(tmp_path / "m.jsonl", [{"message_id": "m1", "village_id": "v9", "agent": "a", "ts": "2025-05-01T00:00:00Z"}])
-    (r,) = load_messages(path)
-    assert (r["episode_id"], r["model"], r["text"]) == ("v9", "", "")
+def test_loader_reads_gzip_the_way_the_export_ships(tmp_path, lookup):
+    path = tmp_path / "chat_messages.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        f.write(json.dumps(chat("m1", "alice", "2025-05-01 00:00:00", "hello")) + "\n")
+    assert [r["id"] for r in load_messages(path, lookup)] == ["m1"]
 
 
-def test_loader_fails_loudly_on_a_record_missing_a_required_field(tmp_path):
-    """A schema mismatch with the real export must stop the run, not produce half-empty rows."""
-    path = write_jsonl(tmp_path / "m.jsonl", [{"message_id": "m1", "agent": "a"}])  # no ts
+def test_timestamps_become_utc_iso_with_six_fraction_digits(tmp_path, lookup):
+    stamps = ["2025-05-01 00:00:00", "2025-05-01 00:00:00.123456", "2025-05-01 00:00:00.5"]
+    path = write_jsonl(tmp_path / "m.jsonl", [chat(f"m{i}", "alice", t, "x") for i, t in enumerate(stamps)])
+    got = [r["ts"] for r in load_messages(path, lookup)]
+    assert got == ["2025-05-01T00:00:00.000000Z", "2025-05-01T00:00:00.123456Z", "2025-05-01T00:00:00.500000Z"]
+    assert got == sorted(got)  # fixed width, so string order is time order
+
+
+def test_naive_timestamps_are_utc_not_the_machines_local_time(monkeypatch):
+    monkeypatch.setenv("TZ", "Pacific/Auckland")
+    time.tzset()
+    try:
+        assert normalise_ts("2025-05-01 00:00:00") == "2025-05-01T00:00:00.000000Z"
+        assert _parse_ts("2025-05-01 00:00:00") == _parse_ts("2025-05-01T00:00:00Z")
+        assert normalise_ts("2025-05-01T10:00:00+01:00") == "2025-05-01T09:00:00.000000Z"
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+
+
+def test_human_and_empty_rows_are_skipped_and_counted_not_hidden(tmp_path, lookup):
+    path = write_jsonl(
+        tmp_path / "m.jsonl",
+        [chat("m1", "alice", "2025-05-01 00:00:00", "kept"), chat("u1", None, "2025-05-01 00:00:01", "a human", speaker_type="user"), chat("m2", "alice", "2025-05-01 00:00:02", "  \n")],
+    )
+    stats = {}
+    assert [r["id"] for r in load_messages(path, lookup, stats=stats)] == ["m1"]
+    assert stats == {"human_rows_skipped": 1, "empty_text_skipped": 1}
+
+
+def test_the_time_window_is_start_inclusive_end_exclusive_for_both_kinds(tmp_path, lookup):
+    stamps = ["2025-05-01 09:59:59", "2025-05-01 10:00:00", "2025-05-01 10:59:59.999999", "2025-05-01 11:00:00"]
+    msgs = write_jsonl(tmp_path / "m.jsonl", [chat(f"m{i}", "alice", t, "x") for i, t in enumerate(stamps)])
+    mems = write_jsonl(tmp_path / "k.jsonl", [memory(f"k{i}", "alice", t, "x") for i, t in enumerate(stamps)])
+    start, end = "2025-05-01T10:00:00.000000Z", "2025-05-01T11:00:00.000000Z"
+    stats = {}
+    assert [r["id"] for r in load_messages(msgs, lookup, start, end, stats=stats)] == ["m1", "m2"]
+    assert [r["id"] for r in load_memories(mems, lookup, start, end)] == ["k1", "k2"]
+    assert stats["outside_slice"] == 2
+
+
+def test_episode_is_the_goal_period_containing_the_time(lookup):
+    assert lookup.episode_of("2025-05-01T00:00:00.000000Z") == "e1"  # start inclusive
+    assert lookup.episode_of("2025-05-09T23:59:59.999999Z") == "e1"
+    assert lookup.episode_of("2025-05-10T00:00:00.000000Z") == ""  # end exclusive, and no goal runs then
+    assert lookup.episode_of("2025-04-30T23:59:59.999999Z") == ""
+    assert lookup.episode_of("2030-01-01T00:00:00.000000Z") == "e2"  # ongoing goal has no end
+
+
+def test_an_agent_id_that_is_not_in_the_export_stops_the_run(tmp_path, lookup):
+    """A speaker the agents table has never heard of is a schema or export problem, not a row to guess at."""
+    path = write_jsonl(tmp_path / "m.jsonl", [dict(chat("m1", "alice", "2025-05-01 00:00:00", "x"), agent_speaker_id="ag-ghost")])
     with pytest.raises(KeyError):
-        load_messages(path)
+        load_messages(path, lookup)
+
+
+def test_loader_fails_loudly_on_a_record_missing_a_required_field(tmp_path, lookup):
+    """A schema mismatch with the real export must stop the run, not produce half-empty rows."""
+    path = write_jsonl(tmp_path / "m.jsonl", [{"id": "m1", "speaker_type": "agent", "agent_speaker_id": "ag-alice", "content": "x"}])  # no created_at
+    with pytest.raises(KeyError):
+        load_messages(path, lookup)
 
 
 def test_loader_fails_loudly_on_invalid_json(tmp_path):
     path = tmp_path / "m.jsonl"
     path.write_text("{not json}\n")
     with pytest.raises(json.JSONDecodeError):
-        load_jsonl(path, lambda r: r)
+        load_jsonl(path, lambda r, st: r)
 
 
-def test_empty_export_loads_as_no_rows(tmp_path):
+def test_empty_export_loads_as_no_rows(tmp_path, lookup):
     path = tmp_path / "m.jsonl"
     path.write_text("")
-    assert load_messages(path) == []
+    assert load_messages(path, lookup) == []
 
 
-def test_synthetic_village_passes_the_join_test(village):
+def test_synthetic_village_passes_the_join_test(village, lookup):
     messages, memories = village
-    report = join_report(load_messages(messages), load_memories(memories))
+    report = join_report(load_messages(messages, lookup), load_memories(memories, lookup))
     assert report["pass"] is True and report["n_unmatched"] == 0 and report["n_memories"] == len(MEMORIES)
 
 
@@ -114,9 +174,9 @@ def test_join_caps_the_unmatched_sample_at_twenty():
     assert report["n_unmatched"] == 50 and len(report["unmatched_ids"]) == 20
 
 
-def test_episode_rows_for_an_unknown_episode_is_empty(village):
+def test_episode_rows_for_an_unknown_episode_is_empty(village, lookup):
     messages, memories = village
-    assert episode_rows(load_messages(messages), load_memories(memories), "nope") == []
+    assert episode_rows(load_messages(messages, lookup), load_memories(memories, lookup), "nope") == []
 
 
 # --- extract -----------------------------------------------------------------------------------
@@ -479,3 +539,12 @@ def test_write_page_creates_missing_directories_and_round_trips(tmp_path):
     page = build_page(["<h2>x</h2>"], title="é ✓")
     write_page(page, out)
     assert Path(out).read_text(encoding="utf-8") == page
+
+
+def test_episodes_filter_keeps_only_the_named_goal_periods_in_both_kinds(village, lookup):
+    messages, memories = village
+    stats = {}
+    assert [r["id"] for r in load_messages(messages, lookup, episodes={"e2"}, stats=stats)] == ["m6"]
+    assert stats["outside_slice"] == 5
+    assert load_memories(memories, lookup, episodes={"e2"}) == []
+    assert len(load_messages(messages, lookup, episodes={"e1", "e2"})) == len(MESSAGES)

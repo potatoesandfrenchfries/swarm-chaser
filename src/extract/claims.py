@@ -17,6 +17,7 @@ from dataclasses import dataclass
 # from "rows have rev_id/episode_id" to the ingest.py row shape ("id"/"episode_id").
 MAX_CHARS = 24000  # roughly 6-8k tokens; matches the battery's figure
 TRUNC_MARK = "\n[TRUNCATED]\n"
+ROW_KEYS = ("id", "agent", "model", "ts", "source", "text")
 
 
 def render_row(row: dict) -> str:
@@ -50,14 +51,17 @@ def chunk_rows(rows: list[dict], max_chars: int = MAX_CHARS, overlap: int = 1) -
         groups.append(current)
 
     episode_id = rows[0]["episode_id"] if rows else ""
+    by_id = {row["id"]: row for row in rows}
     return [
         {
             "chunk_id": f"{episode_id}#{i}",
             "episode_id": episode_id,
             "row_ids": [b[0] for b in group],
-            "agents": sorted({r["agent"] for r in rows if r["id"] in {b[0] for b in group}}),
+            "agents": sorted({by_id[b[0]]["agent"] for b in group}),
             "truncated": any(b[2] for b in group),
             "text": "".join(b[1] for b in group),
+            # What `parse_claims` needs to tell which row a quote came from: its speaker, model, time and own text.
+            "rows": [{k: by_id[b[0]].get(k, "") for k in ROW_KEYS} for b in group],
         }
         for i, group in enumerate(groups)
     ]
@@ -148,12 +152,25 @@ class Claim:
     claim_type: str
     checkable: bool
     extractor: str = "e1"  # which prompt variant produced this, for M5's sensitivity check
+    row_id: str = ""  # the chat message or memory the quote is from; "" if the chunk carried no rows
+
+
+def source_row(quote: str, chunk: dict, agent: str = "") -> dict | None:
+    """The one row of the chunk whose own text contains `quote`. If several do, prefer the one spoken by
+    `agent`, else the first. None when no single row holds it, e.g. a quote that runs across two messages
+    or into a header line.
+    """
+    holders = [r for r in chunk["rows"] if quote in r["text"]]
+    return next((r for r in holders if r["agent"] == agent), holders[0] if holders else None)
 
 
 def parse_claims(llm_json: dict, chunk: dict, extractor: str = "e1") -> tuple[list[Claim], list[dict]]:
     """Validate each raw claim against the chunk text. Returns (kept, dropped-with-reason).
-    CUSTOMISE: `claim_id`, `agent`, `model` and `ts` here assume one agent/timestamp per chunk
-    is good enough for a pilot; a real run should look up the specific row the quote came from.
+
+    A chunk built by `chunk_rows` carries its rows, so each kept claim takes its speaker, model, time and
+    source from the one row the quote came from, not from what the model said; a quote that is in the chunk
+    but in no single row is dropped as `quote_not_in_one_row`. A hand-built chunk with no `rows` key keeps
+    the model's agent and leaves `model` and `ts` empty.
     """
     kept, dropped = [], []
     for i, raw in enumerate(llm_json.get("claims", [])):
@@ -161,18 +178,26 @@ def parse_claims(llm_json: dict, chunk: dict, extractor: str = "e1") -> tuple[li
         if not validate_quote(quote, chunk["text"]):
             dropped.append({"chunk_id": chunk["chunk_id"], "index": i, "reason": "quote_not_in_chunk"})
             continue
+        agent, model, ts, source, row_id = raw.get("agent", chunk["agents"][0] if chunk["agents"] else ""), "", "", "chat", ""
+        if "rows" in chunk:
+            row = source_row(quote, chunk, agent)
+            if row is None:
+                dropped.append({"chunk_id": chunk["chunk_id"], "index": i, "reason": "quote_not_in_one_row"})
+                continue
+            agent, model, ts, source, row_id = row["agent"], row["model"], row["ts"], row["source"], row["id"]
         kept.append(
             Claim(
                 claim_id=f"{chunk['chunk_id']}-{i}",
                 episode=chunk["episode_id"],
-                agent=raw.get("agent", chunk["agents"][0] if chunk["agents"] else ""),
-                model="",  # CUSTOMISE: join against ingest's agent->model map
-                ts="",  # CUSTOMISE: look up the specific row's ts, not the chunk's
-                source="chat",
+                agent=agent,
+                model=model,
+                ts=ts,
+                source=source,
                 quote=quote,
                 claim_type=raw.get("claim_type", "unknown"),
                 checkable=bool(raw.get("checkable", True)),
                 extractor=extractor,
+                row_id=row_id,
             )
         )
     return kept, dropped

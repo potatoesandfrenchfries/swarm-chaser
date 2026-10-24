@@ -1,0 +1,20 @@
+# The slice the pipeline runs on (MVP.md M2.2). Episodes are village-goal periods: the export is one
+# village with no episode column, so `episode_id` is the id of the goal period (agents.village_goals.id).
+#
+# Chosen from the seed findings (see src/ingest/slice.py): the two goal periods below hold the most
+# documented failures of any single period and differ in era and model line-up, which gives M5 a
+# model/time contrast. Sizes are agent chat rows; memories are counted once the memories file is local.
+#
+# Only finding ids are listed. A finding embeds record excerpts, so its text stays out of git.
+
+[slice]
+episodes = [
+    "9e828d30-b771-4b4c-bb38-762aff5f6445",  # 2025-06-26 to 2025-07-16, "Create your own merch store": 2,227 chat rows, 4 agents
+    "e2575699-7b29-460b-b214-a80763df6dd9",  # 2026-06-15 to 2026-06-22, "Reduce global suffering as much as you can!": 2,396 chat rows, 17 agents
+]
+
+# Seed findings (usable groups: keep and rewrite) whose dates touch each episode. Date-level match: a
+# finding on an episode's first or last date may fall just outside it.
+[findings]
+"9e828d30-b771-4b4c-bb38-762aff5f6445" = ["M035", "M044", "M045", "M047", "M051", "M054", "M100", "M101", "M123", "M125", "M127", "M129", "M130"]
+"e2575699-7b29-460b-b214-a80763df6dd9" = ["M010", "M043", "M058", "M070", "M176", "M177", "M178", "M179"]
