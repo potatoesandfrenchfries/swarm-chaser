@@ -117,7 +117,12 @@ KAPPA_UNRELIABLE_BELOW = 0.6
 
 
 def agreement_report(verdicts_a: list, verdicts_b: list) -> dict:
-    """Verdicts from the two checker vendors, aligned by claim_id, as one agreement summary."""
+    """Verdicts from the two checker vendors, aligned by claim_id, as one agreement summary.
+
+    Claims only one vendor judged are left out of kappa but counted, so a vendor that failed
+    on many claims shows up instead of quietly shrinking n. The judge names are reported so
+    the page says which two vendors were compared.
+    """
     by_id_b = {v.claim_id: v.verdict for v in verdicts_b}
     paired = [(v.verdict, by_id_b[v.claim_id]) for v in verdicts_a if v.claim_id in by_id_b]
     a_labels = [p[0] for p in paired]
@@ -125,7 +130,10 @@ def agreement_report(verdicts_a: list, verdicts_b: list) -> dict:
     agree = sum(x == y for x, y in zip(a_labels, b_labels)) / len(paired) if paired else float("nan")
     kappa = cohen_kappa(a_labels, b_labels)
     return {
+        "judges": (", ".join(sorted({v.judge for v in verdicts_a})), ", ".join(sorted({v.judge for v in verdicts_b}))),
         "n_paired": len(paired),
+        "n_only_a": len(verdicts_a) - len(paired),
+        "n_only_b": len(by_id_b) - len(paired),
         "agreement": agree,
         "kappa": kappa,
         "unreliable": kappa is not None and kappa < KAPPA_UNRELIABLE_BELOW,
