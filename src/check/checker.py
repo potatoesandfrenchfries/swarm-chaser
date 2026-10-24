@@ -12,12 +12,14 @@ evidence is not a contradiction; no credentials in quotes; strict JSON. That pro
 against a rubric finding; this one scores one claim against a window, so the rest is new, including the
 rule that the claim's own entry is not evidence for itself.
 
-CUSTOMISE: the window definition (M4.1) and the prompt are drafts until a small sample has been read by
-hand. The window built from a claim's agent and time contains the claim's own entry; M4.1 should drop
-that entry (`Claim.row_id`) so the model cannot cite the claim as its own evidence. The prompt says
-not to either way, but a rule in a prompt is not a guarantee.
+The window (`evidence_window`, `claim_window`) leaves out the claim's own row (`Claim.row_id`) so the model
+cannot cite the claim as its own evidence. The prompt says not to either way, but a rule in a prompt is
+not a guarantee.
+
+CUSTOMISE: the window bounds and the prompt are drafts until a small sample has been read by hand.
 """
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Callable
 
 VERDICTS = ("contradicted", "supported", "unverifiable")  # must match report/headline.py
@@ -27,6 +29,12 @@ VERDICTS = ("contradicted", "supported", "unverifiable")  # must match report/he
 # is too big to fit a prompt alongside long chunks.
 WINDOW_BEFORE_SECONDS = 24 * 3600
 WINDOW_AFTER_SECONDS = 24 * 3600
+
+# The window is also bounded in size, because one memory can be hundreds of thousands of characters.
+# CUSTOMISE: set both from the sample read by hand (M4.4); the model's context is the real limit.
+MAX_WINDOW_CHARS = 60000
+MAX_ROW_CHARS = 6000
+ROW_TRUNC_MARK = " [TRUNCATED]"
 
 CHECKER_PROMPT = """You check one claim that an AI agent made in a shared village chat, against a window of
 that same agent's own record: its chat messages and the memories it wrote, from before and after the
@@ -65,23 +73,55 @@ Return only JSON: {"verdict": "supported"|"contradicted"|"unverifiable",
 """
 
 
-def evidence_window(agent_rows: list[dict], claim_ts: str, claim_agent: str) -> list[dict]:
-    """The same agent's rows within WINDOW_BEFORE/AFTER of the claim. `agent_rows` should
-    already be filtered or filterable to one agent; this just narrows by time.
-    CUSTOMISE: swap in a real timestamp parser matching ingest/village.py's `_parse_ts` once
-    the real export's timestamp format is confirmed.
+def _parse_ts(ts: str) -> float:
+    return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+
+
+def _clip(row: dict, max_chars: int) -> dict:
+    if len(row["text"]) <= max_chars:
+        return row
+    return {**row, "text": row["text"][:max_chars] + ROW_TRUNC_MARK}
+
+
+def evidence_window(
+    agent_rows: list[dict],
+    claim_ts: str,
+    claim_agent: str,
+    exclude_id: str = "",
+    episode_id: str = "",
+    max_chars: int = MAX_WINDOW_CHARS,
+) -> list[dict]:
+    """The same agent's own record around a claim (M4.1), in time order.
+
+    A row is in the window if it is the claim's agent's, in the claim's episode (when `episode_id` is
+    given), within WINDOW_BEFORE/AFTER_SECONDS of `claim_ts`, and is not `exclude_id`, the claim's own
+    row (`Claim.row_id`). Chat and memory rows are both included: they sit in one table with the same
+    clock. A row longer than MAX_ROW_CHARS is cut and marked. If the rendered window would still be over
+    `max_chars`, the rows nearest the claim in time are kept and the farthest dropped, so the bound is on
+    size as well as on time. The result is always a subset of the record, and a quote copied from
+    `window_text(window)` is a substring of it, which is what `check_claim` tests.
     """
-    from datetime import datetime
-
-    def parse(ts):
-        return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
-
-    t0 = parse(claim_ts)
-    return [
-        r
+    t0 = _parse_ts(claim_ts)
+    inside = [
+        _clip(r, MAX_ROW_CHARS)
         for r in agent_rows
-        if r["agent"] == claim_agent and t0 - WINDOW_BEFORE_SECONDS <= parse(r["ts"]) <= t0 + WINDOW_AFTER_SECONDS
+        if r["agent"] == claim_agent
+        and r["id"] != exclude_id
+        and (not episode_id or r.get("episode_id", episode_id) == episode_id)
+        and t0 - WINDOW_BEFORE_SECONDS <= _parse_ts(r["ts"]) <= t0 + WINDOW_AFTER_SECONDS
     ]
+    kept, size = [], 0
+    for r in sorted(inside, key=lambda r: (abs(_parse_ts(r["ts"]) - t0), r["id"])):
+        size += len(window_text([r]))
+        if size > max_chars and kept:
+            break
+        kept.append(r)
+    return sorted(kept, key=lambda r: (_parse_ts(r["ts"]), r["id"]))
+
+
+def claim_window(claim, rows: list[dict], max_chars: int = MAX_WINDOW_CHARS) -> list[dict]:
+    """`evidence_window` for a `Claim`: its agent, episode and time, without the row it was made in."""
+    return evidence_window(rows, claim.ts, claim.agent, exclude_id=claim.row_id, episode_id=claim.episode, max_chars=max_chars)
 
 
 def window_text(window: list[dict]) -> str:

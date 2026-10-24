@@ -1,4 +1,5 @@
-from check.checker import Verdict, check_claim, evidence_window, window_text
+from check import checker
+from check.checker import Verdict, check_claim, claim_window, evidence_window, window_text
 from extract.claims import Claim
 
 
@@ -22,6 +23,51 @@ def test_evidence_window_keeps_only_same_agent_within_range():
     window = evidence_window(rows, claim().ts, "a")
     assert len(window) == 1
     assert window[0]["ts"] == "2025-05-01T11:00:00Z"
+
+
+# --- the window (M4.1) --------------------------------------------------------------------------------
+
+
+def test_window_leaves_out_the_claims_own_row():
+    rows = [row("2025-05-01T12:00:00Z", text="the report was filed"), row("2025-05-01T13:00:00Z", text="it was filed")]
+    c = claim()
+    c.row_id = rows[0]["id"]
+    window = claim_window(c, rows)
+    assert [r["text"] for r in window] == ["it was filed"]
+
+
+def test_window_is_in_time_order_and_includes_memories():
+    rows = [row("2025-05-01T13:00:00Z", source="memory", text="m"), row("2025-05-01T11:00:00Z", text="c")]
+    assert [r["source"] for r in evidence_window(rows, claim().ts, "a")] == ["chat", "memory"]
+
+
+def test_window_stays_in_the_claims_episode():
+    rows = [dict(row("2025-05-01T11:00:00Z"), episode_id="e1"), dict(row("2025-05-01T11:30:00Z", text="other"), episode_id="e2")]
+    assert [r["text"] for r in claim_window(claim(), rows)] == ["nothing happened"]
+
+
+def test_window_bound_is_inclusive_at_both_ends():
+    before = row("2025-04-30T12:00:00Z")
+    after = row("2025-05-02T12:00:00Z")
+    assert len(evidence_window([before, after], claim().ts, "a")) == 2
+
+
+def test_window_cuts_a_long_row_and_marks_it():
+    rows = [row("2025-05-01T11:00:00Z", text="x" * (checker.MAX_ROW_CHARS + 500))]
+    (r,) = evidence_window(rows, claim().ts, "a")
+    assert r["text"].endswith(checker.ROW_TRUNC_MARK) and len(r["text"]) < checker.MAX_ROW_CHARS + 50
+
+
+def test_window_over_the_size_cap_drops_the_rows_farthest_from_the_claim():
+    rows = [row(f"2025-05-01T{h:02d}:00:00Z", text=f"row{h} " + "y" * 90) for h in (2, 11, 12, 13, 22)]
+    window = evidence_window(rows, claim().ts, "a", max_chars=3 * len(window_text(rows[:1])) + 10)
+    assert [r["ts"][11:13] for r in window] == ["11", "12", "13"]
+    assert len(window_text(window)) <= 3 * len(window_text(rows[:1])) + 10
+
+
+def test_window_keeps_at_least_the_nearest_row_even_if_it_alone_is_over_the_cap():
+    rows = [row("2025-05-01T12:30:00Z", text="z" * 500)]
+    assert len(evidence_window(rows, claim().ts, "a", max_chars=10)) == 1
 
 
 def test_window_text_renders_every_row():

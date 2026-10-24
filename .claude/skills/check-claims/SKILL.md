@@ -9,7 +9,7 @@ Code: `src/check/checker.py` (`evidence_window`, `window_text`, `check_claim`, `
 
 ## Steps
 
-1. Build the window with `evidence_window(agent_rows, claim_ts, claim_agent)`. It is the same agent's rows within 24 hours either side (`WINDOW_*_SECONDS`). Widen or narrow it only after reading examples.
+1. Build the window with `claim_window(claim, rows)` (or `evidence_window(rows, ts, agent, exclude_id, episode_id)`). It is the same agent's chat and memory rows in the claim's episode within 24 hours either side (`WINDOW_*_SECONDS`), without the claim's own row, in time order, and capped at `MAX_WINDOW_CHARS` by dropping the rows farthest from the claim (`MAX_ROW_CHARS` cuts a single long row). Widen or narrow it only after reading examples.
 2. Write one `call_checker(prompt, text) -> dict` per vendor. It returns `{"verdict", "evidence": [...], "confidence"}`. `check_claim` is vendor-agnostic.
 3. Run every claim through two vendors from different families. Pass the vendor name as `judge_name`.
 4. `check_claim` drops evidence quotes that are not substrings of the window and downgrades the verdict to `unverifiable` if none survive. Do not weaken that.
