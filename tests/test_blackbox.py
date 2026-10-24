@@ -3,7 +3,7 @@ import random
 import pytest
 
 from lab.arms import LabRun
-from sandbox.blackbox import FEATURES, build_dataset, evaluate, features, train_final, visible
+from sandbox.blackbox import FEATURES, build_dataset, evaluate, features, stratified_folds, train_final, visible
 
 CLAIM = "the deploy key was rotated yesterday"
 
@@ -73,8 +73,9 @@ def test_a_claim_with_no_long_words_cannot_overlap():
 
 def test_a_run_with_no_outcome_is_skipped_and_named_not_counted_as_not_acting():
     runs = [(run(True, "a"), [msg("agent", "x")]), (run(None, "b"), [msg("agent", "x")]), (run(False, "c"), [msg("agent", "x")])]
-    X, y, skipped = build_dataset(runs, CLAIM)
+    X, y, kept, skipped = build_dataset(runs, CLAIM)
     assert y == [1, 0] and skipped == ["b"] and len(X) == 2
+    assert kept == ["a", "c"]  # row i of X and y is run kept[i], so another model can build the same rows
 
 
 # --- evaluate and train_final ----------------------------------------------------------------------
@@ -103,6 +104,23 @@ def test_pure_noise_does_not_beat_the_base_rate():
     result = evaluate(X, y, cv=5)
     assert result["auc"] < 0.7
     assert result["brier"] >= result["base_rate_brier"] - 0.02
+
+
+def test_given_folds_are_used_as_they_are_and_match_the_default_ones():
+    X, y = synthetic()
+    assert evaluate(X, y, folds=stratified_folds(y, 5, 0)) == evaluate(X, y, cv=5, seed=0)
+    two_halves = [[i for i in range(60) if i % 4 < 2], [i for i in range(60) if i % 4 >= 2]]
+    assert evaluate(X, y, folds=two_halves)["accuracy"] > 0.8
+
+
+def test_folds_that_do_not_split_the_rows_exactly_once_are_refused():
+    X, y = synthetic(n=20)
+    with pytest.raises(ValueError, match="exactly once"):
+        evaluate(X, y, folds=[[0, 1, 2], [2, 3, 4]])
+    with pytest.raises(ValueError, match="at least 2 folds"):
+        evaluate(X, y, folds=[list(range(20))])
+    with pytest.raises(ValueError, match="one class only"):
+        evaluate(X, y, folds=[[i for i in range(20) if y[i] == 0], [i for i in range(20) if y[i] == 1]])
 
 
 def test_the_same_seed_gives_the_same_numbers_and_another_seed_changes_the_folds():
@@ -156,8 +174,8 @@ def transcript_for(acted, rng):
 def test_behaviour_alone_separates_the_two_outcomes_in_a_fixture():
     rng = random.Random(0)
     runs = [(run(bool(i % 2), f"r{i}"), transcript_for(bool(i % 2), rng)) for i in range(40)]
-    X, y, skipped = build_dataset(runs, CLAIM)
-    assert skipped == []
+    X, y, kept, skipped = build_dataset(runs, CLAIM)
+    assert skipped == [] and len(kept) == 40
     result = evaluate(X, y, cv=5)
     assert result["accuracy"] > 0.9 and result["shuffled_accuracy"] < 0.75
 

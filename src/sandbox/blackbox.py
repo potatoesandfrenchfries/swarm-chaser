@@ -89,17 +89,21 @@ def features(transcript: Transcript, claim: str, cutoff: Optional[int] = None) -
     ]
 
 
-def build_dataset(runs: list[tuple[LabRun, Transcript]], claim: str, cutoff: Optional[int] = None) -> tuple[list[list[float]], list[int], list[str]]:
-    """(X, y, skipped). A run with no `acted_on_claim` has no label, so it is left out and its `run_dir` is
-    returned in `skipped` rather than counted as "did not act" (that would bias the rate down)."""
-    X, y, skipped = [], [], []
+def build_dataset(runs: list[tuple[LabRun, Transcript]], claim: str, cutoff: Optional[int] = None) -> tuple[list[list[float]], list[int], list[str], list[str]]:
+    """(X, y, kept, skipped). A run with no `acted_on_claim` has no label, so it is left out and its `run_dir` is
+    returned in `skipped` rather than counted as "did not act" (that would bias the rate down).
+
+    `kept[i]` is the `run_dir` of row i of X and y. Build the whitebox features for exactly these runs, in this
+    order, so both models see the same rows and can share folds."""
+    X, y, kept, skipped = [], [], [], []
     for run, transcript in runs:
         if run.acted_on_claim is None:
             skipped.append(run.run_dir)
             continue
         X.append(features(transcript, claim, cutoff))
         y.append(int(run.acted_on_claim))
-    return X, y, skipped
+        kept.append(run.run_dir)
+    return X, y, kept, skipped
 
 
 # --- the classifier ----------------------------------------------------------------------------------
@@ -148,8 +152,10 @@ def _check(X, y, cv: int) -> None:
         raise ValueError(f"cv must be between 2 and the size of the smaller class ({smaller}), got {cv}")
 
 
-def _stratified_folds(y: list[int], cv: int, seed: int) -> list[list[int]]:
-    """Indices per fold, each class dealt round-robin after a seeded shuffle, so every fold has both classes."""
+def stratified_folds(y: list[int], cv: int, seed: int = 0) -> list[list[int]]:
+    """Indices per fold, each class dealt round-robin after a seeded shuffle, so every fold has both classes.
+
+    Public so the orchestrator can build the folds once and pass the same ones to both models (`folds=`)."""
     rng = random.Random(seed)
     folds: list[list[int]] = [[] for _ in range(cv)]
     position = 0
@@ -162,9 +168,24 @@ def _stratified_folds(y: list[int], cv: int, seed: int) -> list[list[int]]:
     return folds
 
 
-def _cross_validate(X, y, cv: int, seed: int) -> tuple[list[float], list[Optional[float]], list[Prediction]]:
+def _check_folds(folds: list[list[int]], y: list[int]) -> None:
+    """Folds must split the rows exactly once each, and every training side must hold both classes."""
+    n = len(y)
+    if len(folds) < 2:
+        raise ValueError(f"need at least 2 folds, got {len(folds)}")
+    indices = sorted(i for fold in folds for i in fold)
+    if indices != list(range(n)):
+        raise ValueError(f"folds must hold each of the {n} row indices exactly once")
+    for fold in folds:
+        if not fold:
+            raise ValueError("a fold is empty")
+        if len({y[i] for i in range(n) if i not in set(fold)}) < 2:
+            raise ValueError("a fold leaves a training side with one class only")
+
+
+def _cross_validate(X, y, folds: list[list[int]]) -> tuple[list[float], list[Optional[float]], list[Prediction]]:
     accuracies, aucs, pooled = [], [], []
-    for held_out in _stratified_folds(y, cv, seed):
+    for held_out in folds:
         test = set(held_out)
         train = [i for i in range(len(y)) if i not in test]
         model = _fit_logistic([X[i] for i in train], [y[i] for i in train])
@@ -176,8 +197,12 @@ def _cross_validate(X, y, cv: int, seed: int) -> tuple[list[float], list[Optiona
     return accuracies, aucs, pooled
 
 
-def evaluate(X, y, cv: int = 5, seed: int = 0) -> dict:
+def evaluate(X, y, cv: int = 5, seed: int = 0, folds: Optional[list[list[int]]] = None) -> dict:
     """Cross-validated accuracy and AUC on features X and labels y, as `classify.evaluate` reports them.
+
+    By default the folds come from `stratified_folds(y, cv, seed)`. Pass `folds` (lists of row indices) to score
+    on folds chosen elsewhere, for instance the same ones another model is scored on; `cv` is then ignored.
+    The shuffled-label run uses the same folds, so it differs from the real run only in the labels.
 
     Also returns `brier` against `base_rate_brier` (the M10 comparison) over the pooled held-out predictions,
     and `shuffled_accuracy`: the same pipeline on shuffled labels. That should sit near the base rate; if it
@@ -185,11 +210,16 @@ def evaluate(X, y, cv: int = 5, seed: int = 0) -> dict:
     """
     X = [list(map(float, row)) for row in X]
     y = [int(v) for v in y]
-    _check(X, y, cv)
-    accuracies, aucs, pooled = _cross_validate(X, y, cv, seed)
+    if folds is None:
+        _check(X, y, cv)
+        folds = stratified_folds(y, cv, seed)
+    else:
+        _check(X, y, 2)
+        _check_folds(folds, y)
+    accuracies, aucs, pooled = _cross_validate(X, y, folds)
     shuffled = list(y)
     random.Random(seed + 1).shuffle(shuffled)
-    shuffled_accuracies, _, _ = _cross_validate(X, shuffled, cv, seed)
+    shuffled_accuracies, _, _ = _cross_validate(X, shuffled, folds)
     base = base_rate_predictor(pooled)
     return {
         "accuracy": mean(accuracies),
