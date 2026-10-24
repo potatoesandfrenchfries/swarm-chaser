@@ -40,3 +40,6 @@ htmlcov/
 .pytest_cache/
 .ruff_cache/
 .hypothesis/
+
+# local model-call cache: holds text derived from the village export (research use only)
+cache/
