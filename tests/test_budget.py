@@ -71,10 +71,10 @@ def test_a_retired_model_in_the_config_still_counts_toward_the_spend(tmp_path):
         remaining_usd(cache, [other], config(tmp_path, "cap_gbp = 10\nusd_per_gbp = 1.0\n"))
 
 
-def test_the_shipped_config_prices_the_gemini_checker_it_replaced():
+def test_the_shipped_config_prices_the_checkers_it_replaced():
     from llm.budget import retired_specs
 
-    assert [(s.vendor, s.model) for s in retired_specs()] == [("gemini", "gemini-3.8-flash")]
+    assert [(s.vendor, s.model) for s in retired_specs()] == [("gemini", "gemini-3.8-flash"), ("openrouter", "openai/gpt-oss-20b")]
 
 
 def test_the_remainder_is_the_budget_less_the_spend_and_never_negative(tmp_path):
