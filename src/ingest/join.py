@@ -23,7 +23,7 @@ from bisect import bisect_left, bisect_right
 from pathlib import Path
 
 from ingest.store import read_rows
-from ingest.village import _parse_ts, join_report
+from ingest.village import join_report, parse_ts
 
 # Must equal check.checker.WINDOW_BEFORE_SECONDS and WINDOW_AFTER_SECONDS; tests/test_join.py checks that
 # it does. It is repeated here because ingest does not import from the stages after it.
@@ -63,15 +63,15 @@ def join_evidence(rows: list[dict], window: float = JOIN_WINDOW_SECONDS) -> dict
         episode_memories = [r for r in memories if r["episode_id"] == episode_id]
         chat_times, memory_times = {}, {}
         for r in episode_chat:
-            chat_times.setdefault(r["agent"], []).append(_parse_ts(r["ts"]))
+            chat_times.setdefault(r["agent"], []).append(parse_ts(r["ts"]))
         for r in episode_memories:
-            memory_times.setdefault(r["agent"], []).append(_parse_ts(r["ts"]))
+            memory_times.setdefault(r["agent"], []).append(parse_ts(r["ts"]))
         for times in (*chat_times.values(), *memory_times.values()):
             times.sort()
 
         gaps, memories_with_chat, unmatched = [], 0, []
         for r in episode_memories:
-            t, times = _parse_ts(r["ts"]), chat_times.get(r["agent"], [])
+            t, times = parse_ts(r["ts"]), chat_times.get(r["agent"], [])
             if times:
                 i = bisect_left(times, t)
                 gaps.append(min(abs(times[j] - t) for j in (i - 1, i) if 0 <= j < len(times)))
@@ -79,7 +79,7 @@ def join_evidence(rows: list[dict], window: float = JOIN_WINDOW_SECONDS) -> dict
                 memories_with_chat += 1
             else:
                 unmatched.append(r["id"])
-        chat_with_memory = sum(_inside(memory_times.get(r["agent"], []), _parse_ts(r["ts"]), window) for r in episode_chat)
+        chat_with_memory = sum(_inside(memory_times.get(r["agent"], []), parse_ts(r["ts"]), window) for r in episode_chat)
         gaps.sort()
         strict = join_report(episode_chat, episode_memories, STRICT_TOLERANCE_SECONDS)
 

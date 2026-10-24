@@ -4,6 +4,7 @@
     PYTHONPATH=src uv run python -m adapters.sample_run extract --chunks 10 --live
     PYTHONPATH=src uv run python -m adapters.sample_run check                        # dry run
     PYTHONPATH=src uv run python -m adapters.sample_run check --live
+    PYTHONPATH=src uv run python -m adapters.sample_run publish                      # builds local/sample.sqlite for Person 2 (issue #65)
 
 Without `--live` nothing is sent and no key is read. With it, each model is given only what is left of the
 `[spend]` budget in config.toml once the shared cache is totalled (src/llm/budget.py), and a run that the
@@ -14,7 +15,7 @@ reaches the network through `adapters/vendors.py`.
 import argparse
 import json
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Callable
 
@@ -22,6 +23,7 @@ from check.checker import Verdict
 from check.run import checker_requests, checker_specs, run_checks
 from extract.claims import PROMPTS, Claim, chunk_rows
 from extract.run import extract_requests, extractor_spec, pick_chunks, run_extraction
+from ingest.handoff import SAMPLE_DB, build_sample
 from ingest.store import connect, read_rows
 from llm.budget import CONFIG, remaining_usd, total_cap_usd
 from llm.client import DEFAULT_CACHE, ModelClient, ModelSpec
@@ -64,9 +66,28 @@ def _save(out: Path, name: str, data) -> None:
     (out / name).write_text(json.dumps(data, indent=1, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def episode_chunks(rows: list[dict]) -> list[dict]:
+    """Chunks built one episode at a time. `chunk_rows` takes the episode id from the first row, so given two
+    episodes at once it stamps the first one's id on every chunk, and every claim, of the second.
+    """
+    by_episode: dict[str, list[dict]] = {}
+    for row in rows:
+        by_episode.setdefault(row["episode_id"], []).append(row)
+    return [chunk for episode_rows in by_episode.values() for chunk in chunk_rows(episode_rows)]
+
+
+def with_row_episodes(claims: list[Claim], rows: list[dict]) -> list[Claim]:
+    """Claims whose episode is that of their own row. A claims.json written before chunks were built per
+    episode has the first episode's id on claims from the second, and the checker reads a claim's episode to
+    build its evidence window.
+    """
+    episode_of = {r["id"]: r["episode_id"] for r in rows}
+    return [replace(c, episode=episode_of.get(c.row_id, c.episode)) for c in claims]
+
+
 def extract_stage(args, transports: Transports) -> int:
     rows = read_rows(connect(args.db))
-    chunks = pick_chunks(chunk_rows(rows), args.chunks)
+    chunks = pick_chunks(episode_chunks(rows), args.chunks)
     spec = extractor_spec()
     print(f"{len(rows)} rows, {len(chunks)} chunks picked; extractor {spec.label}; budget ${total_cap_usd(args.config):.2f} in all")
     client = _client(spec, args, transports)
@@ -98,9 +119,10 @@ def check_stage(args, transports: Transports) -> int:
         print(f"no {path}; run the extract stage first", file=sys.stderr)
         return 2
     claims = [Claim(**c) for c in json.loads(path.read_text(encoding="utf-8"))]
+    rows = read_rows(connect(args.db))
+    claims = with_row_episodes(claims, rows)
     if args.limit is not None:
         claims = pick_chunks(claims, args.limit)  # spread through the file, so a few claims come from every chunk and both prompts
-    rows = read_rows(connect(args.db))
     specs = checker_specs()
     print(f"{len(claims)} claims to check with {', '.join(s.label for s in specs.values())}")
     requests = checker_requests(claims, rows)
@@ -134,14 +156,36 @@ def check_stage(args, transports: Transports) -> int:
     return 0
 
 
+def publish_stage(args, transports: Transports) -> int:
+    """Put the slice's rows, the sample's claims and verdicts, and the room data in one database for Person 2."""
+    path = args.out / "claims.json"
+    if not path.exists():
+        print(f"no {path}; run the extract stage first", file=sys.stderr)
+        return 2
+    claims = [Claim(**c) for c in json.loads(path.read_text(encoding="utf-8"))]
+    # verdicts.json is the check stage's output; verdicts_manual.json, if present, is verdicts a person or model wrote
+    # by hand where a vendor's answers are missing, under their own judge name so they are never mistaken for a vendor's.
+    verdict_path = args.out / "verdicts.json"
+    files = [verdict_path, args.out / "verdicts_manual.json"]
+    verdicts = [Verdict(**{k: v for k, v in raw.items() if k != "quote"}) for f in files if f.exists() for raw in json.loads(f.read_text(encoding="utf-8"))]
+    report = build_sample(args.db, args.sample_db, claims, verdicts, args.export)
+    print(json.dumps(report, indent=1, sort_keys=True))
+    if not verdicts:
+        print(f"warning: no {verdict_path}; the verdicts table is empty until the check stage has run", file=sys.stderr)
+    print(f"wrote {args.sample_db}")
+    return 0
+
+
 def main(argv: list[str] | None = None, transports: Transports | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("stage", choices=["extract", "check"])
+    parser.add_argument("stage", choices=["extract", "check", "publish"])
     parser.add_argument("--chunks", type=int, default=10)
     parser.add_argument("--limit", type=int, default=None, help="check only N claims, spread evenly through the file")
     parser.add_argument("--live", action="store_true", help="send requests and spend money; without it, estimate only")
     parser.add_argument("--db", type=Path, default=Path("local/slice.sqlite"))
     parser.add_argument("--out", type=Path, default=Path("local/sample_run"))
+    parser.add_argument("--export", type=Path, default=Path("local/hf"), help="publish: the village export, for chat_rooms and chat_messages")
+    parser.add_argument("--sample-db", type=Path, default=SAMPLE_DB, help="publish: where to write the database")
     parser.add_argument("--cache", default=DEFAULT_CACHE)
     parser.add_argument("--config", type=Path, default=CONFIG)
     args = parser.parse_args(argv)
@@ -149,7 +193,7 @@ def main(argv: list[str] | None = None, transports: Transports | None = None) ->
         from adapters.vendors import make_transport
 
         transports = make_transport
-    return (extract_stage if args.stage == "extract" else check_stage)(args, transports)
+    return {"extract": extract_stage, "check": check_stage, "publish": publish_stage}[args.stage](args, transports)
 
 
 if __name__ == "__main__":

@@ -19,8 +19,9 @@ not a guarantee.
 CUSTOMISE: the window bounds and the prompt are drafts until a small sample has been read by hand.
 """
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Callable
+
+from ingest.village import parse_ts
 
 VERDICTS = ("contradicted", "supported", "unverifiable")  # must match report/headline.py
 
@@ -73,10 +74,6 @@ Return only JSON: {"verdict": "supported"|"contradicted"|"unverifiable",
 """
 
 
-def _parse_ts(ts: str) -> float:
-    return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
-
-
 def _clip(row: dict, max_chars: int) -> dict:
     if len(row["text"]) <= max_chars:
         return row
@@ -101,22 +98,22 @@ def evidence_window(
     size as well as on time. The result is always a subset of the record, and a quote copied from
     `window_text(window)` is a substring of it, which is what `check_claim` tests.
     """
-    t0 = _parse_ts(claim_ts)
+    t0 = parse_ts(claim_ts)
     inside = [
         _clip(r, MAX_ROW_CHARS)
         for r in agent_rows
         if r["agent"] == claim_agent
         and r["id"] != exclude_id
         and (not episode_id or r.get("episode_id", episode_id) == episode_id)
-        and t0 - WINDOW_BEFORE_SECONDS <= _parse_ts(r["ts"]) <= t0 + WINDOW_AFTER_SECONDS
+        and t0 - WINDOW_BEFORE_SECONDS <= parse_ts(r["ts"]) <= t0 + WINDOW_AFTER_SECONDS
     ]
     kept, size = [], 0
-    for r in sorted(inside, key=lambda r: (abs(_parse_ts(r["ts"]) - t0), r["id"])):
+    for r in sorted(inside, key=lambda r: (abs(parse_ts(r["ts"]) - t0), r["id"])):
         size += len(window_text([r]))
         if size > max_chars and kept:
             break
         kept.append(r)
-    return sorted(kept, key=lambda r: (_parse_ts(r["ts"]), r["id"]))
+    return sorted(kept, key=lambda r: (parse_ts(r["ts"]), r["id"]))
 
 
 def claim_window(claim, rows: list[dict], max_chars: int = MAX_WINDOW_CHARS) -> list[dict]:
