@@ -1,7 +1,11 @@
+from dataclasses import replace
+
+import pytest
+
 from check.checker import Verdict
 from extract.claims import Claim
 from llm.client import Completion, ModelClient, ModelSpec
-from report.page import section_3_spread
+from report.page import build_page, section_3_spread
 from spread.linker import (
     SpreadEdge,
     baseline_link,
@@ -185,3 +189,19 @@ def test_section_3_spread_opens_with_the_chart_only_when_given_intervals():
     verdicts = [Verdict("c1", "contradicted", [], "j", 0.9)]
     with_chart = section_3_spread({"contradicted": 1.0}, [], {"contradicted": 0.0}, intervals={"repeated": spread_share_intervals(verdicts, [edge("c1", "r1")], "repeats")})
     assert "<svg" in with_chart and "<svg" not in section_3_spread({"contradicted": 1.0}, [], {"contradicted": 0.0})
+
+
+def test_a_case_with_its_source_record_is_checked_verbatim_before_the_page_builds():
+    c = claim(ts="2025-05-01T00:00:00Z", agent="alice", quote="the build passed")
+    good = documented_case(c, [], record="alice: the build passed with 12 tests green")
+    assert "build passed" in build_page([section_3_spread({}, [good], {})])
+
+    bad = documented_case(replace(c, quote="the build passed cleanly"), [], record="alice: the build passed with 12 tests green")
+    with pytest.raises(ValueError, match="not found verbatim"):
+        build_page([section_3_spread({}, [bad], {})])
+
+
+def test_section_3_says_when_fewer_than_three_cases_are_documented():
+    case = documented_case(claim(), [])
+    assert "1 of the three documented cases" in section_3_spread({}, [case], {})
+    assert "of the three documented cases" not in section_3_spread({}, [case] * 3, {})
