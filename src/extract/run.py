@@ -55,9 +55,12 @@ def run_extraction(
     """(claims, dropped) over all the chunks. A reply that is not JSON, or whose claims are not a list of
     objects, stops the run, unless `failed` is given: then the chunk's id is appended to it and the run goes
     on, so a long run survives one bad reply and the caller can say how many chunks gave nothing.
+
+    Neighbouring chunks share a row (`chunk_rows` overlap), so the same quote from the same row can come back
+    from both. Only the first is kept; the repeat is dropped as `repeat_from_overlap`, or it would count twice.
     """
     prompt = _prompt(extractor)
-    claims, dropped = [], []
+    claims, dropped, seen = [], [], set()
     for chunk in chunks:
         try:
             reply = call_extractor(prompt, chunk["text"])
@@ -69,6 +72,11 @@ def run_extraction(
                 raise
             failed.append(chunk["chunk_id"])
             continue
-        claims.extend(kept)
         dropped.extend(rejected)
+        for c in kept:
+            if (c.row_id, c.quote) in seen:
+                dropped.append({"chunk_id": chunk["chunk_id"], "claim_id": c.claim_id, "reason": "repeat_from_overlap"})
+                continue
+            seen.add((c.row_id, c.quote))
+            claims.append(c)
     return claims, dropped
