@@ -234,3 +234,16 @@ def test_agreement_report_counts_a_claim_judged_twice_once_and_reports_the_dupli
     assert (report["n_paired"], report["n_only_a"], report["n_only_b"]) == (2, 0, 0)  # c1 not paired twice
     assert (report["n_duplicate_a"], report["n_duplicate_b"]) == (1, 1)
     assert report["agreement"] == 0.5  # first verdicts: c1 agrees, c2 does not
+
+
+def test_perturbation_test_splits_the_caught_share_by_kind_of_change():
+    claims = [claim("the count was 42 visitors"), claim("shipped in May"), replace(claim("bob confirmed it"), agent="bob"), replace(claim("no change"), agent="alice")]
+    # A checker that only notices changed numbers.
+    by_kind = {}
+    result = perturbation_test(claims, lambda c: "contradicted" if "42" not in c.quote and c.quote.startswith("the count") else "supported", by_kind=by_kind)
+    assert by_kind == {"number": {"n": 1, "n_caught": 1}, "date": {"n": 1, "n_caught": 0}, "name": {"n": 1, "n_caught": 0}}
+    assert (result["n_perturbable"], result["n_caught"]) == (3, 1)
+
+    no_agreement = {"n_paired": 0, "agreement": float("nan"), "kappa": None, "unreliable": False}
+    row = validation_table(result, no_agreement, known_failure_recall([], set()), {"n_read": 0, "note": ""}, perturbation_by_kind=by_kind)[0]
+    assert row["note"].endswith("; caught: numbers 1/1, dates 0/1, names 0/1")
