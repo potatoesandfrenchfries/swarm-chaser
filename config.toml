@@ -32,9 +32,11 @@ usd_per_gbp = 1.25
 # reruns that model's calls.
 #
 # Prices, checked 2026-10-24: Claude Haiku 5.5 is $0.10 in / $0.50 out for prompts up to 100K tokens ($0.50 /
-# $2.50 above that; our windows and chunks are far smaller). Checker B is gpt-oss-120b on Groq, $0.15 in / $0.60
-# out (console.groq.com/docs/models, read 2026-10-24); it reasons, and Groq reports that as completion tokens.
-# It replaced Gemini 3.8 Flash ($0.75 / $3.75), which put the 649-claim check sample at about $21 of a $3.75 budget.
+# $2.50 above that; our windows and chunks are far smaller). Checker B is gpt-oss-120b through OpenRouter,
+# $0.15 in / $0.60 out (openrouter.ai/api/v1/models, read 2026-10-24); it reasons, and OpenRouter reports that as
+# completion tokens. It replaced Gemini 3.8 Flash ($0.75 / $3.75), which put the 649-claim check sample at about
+# $21 of a $3.75 budget, and Groq's gpt-oss-120b, whose free tier allows 8,000 tokens a minute against windows of
+# about 15,000. On 60 claims its kappa with Haiku was 0.50, against 0.33 for gpt-oss-20b (STRESSTEST.md).
 
 [extractor]
 vendor = "anthropic"
@@ -58,8 +60,14 @@ model = "gemini-3.8-flash"
 usd_per_mtok_in = 0.75
 usd_per_mtok_out = 3.75
 
+[retired.gpt_oss_20b_openrouter]
+vendor = "openrouter"
+model = "openai/gpt-oss-20b"
+usd_per_mtok_in = 0.018
+usd_per_mtok_out = 0.09
+
 [checkers.b]
-vendor = "groq"
+vendor = "openrouter"
 model = "openai/gpt-oss-120b"
 max_tokens = 16000
 usd_per_mtok_in = 0.15
