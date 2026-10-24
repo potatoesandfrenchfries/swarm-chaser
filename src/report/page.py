@@ -13,6 +13,8 @@ it, rather than duplicating the assembly logic in two places.
 import html
 from pathlib import Path
 
+from report.quotes import REGISTRY, bad_quotes
+
 LIMITS_NOTE = (
     "All verdicts on this page come from LLM checkers, not human review. The perturbation "
     "test, cross-vendor agreement and known-failure recall estimate how often the checker is "
@@ -22,6 +24,17 @@ LIMITS_NOTE = (
     "range rather than one point. Models ran in different periods of the Village, so model "
     "and time are confounded in the breakdown by model."
 )
+
+# What the page does not show (MVP.md M12, "the limits of the study"). Keep each item short
+# and true of the run actually shown; add to it rather than soften it.
+LIMITS = [
+    "All labels are LLM-made. No claim, verdict, spread link or sandbox outcome was checked by a person, so no number here is accuracy against human-labelled truth.",
+    "Model and time are confounded: each model ran in a different period of the Village, so a difference by model may be a difference by month.",
+    "The village results cover one slice of the record, not the full 17 months, and only claims that a checker could test against the same agent's own record.",
+    "Spread counts only repeats and corrections the linker found among agents who could have seen the earlier message; links it missed are not counted.",
+    "The sandbox is one scenario with two models. Its forecaster and handling results say nothing about other tasks, models or influencer strategies than the ones listed.",
+    "The forecaster is zero-shot and compared against a base-rate predictor only, not against other forecasters or people. Its outcome labels come from the definition of acting on the claim that was frozen before the main runs.",
+]
 
 
 def _table(headers: list[str], rows: list[list]) -> str:
@@ -112,11 +125,25 @@ def section_6_sandbox(handling: dict, forecaster_score: dict) -> str:
     )
 
 
+def section_limits() -> str:
+    """MVP.md M12: what the page does not show."""
+    items = "".join(f"<li>{html.escape(item)}</li>" for item in LIMITS)
+    return f"<h2>Limits</h2><p>{html.escape(LIMITS_NOTE)}</p><p>What this page does not show:</p><ul>{items}</ul>"
+
+
 def build_page(sections: list[str], title: str = "claim-spread: results") -> str:
     """Wrap pre-rendered section HTML into one static page. CUSTOMISE styling as wanted;
     kept to inline CSS and no JS so `python -m http.server` is enough to view it.
+
+    Raises ValueError if any quote a section registered is not an exact substring of its
+    record (MVP.md success criterion: 100%), then clears the registry for the next build.
     """
-    body = "\n".join(sections) + f"<h2>Limits</h2><p>{html.escape(LIMITS_NOTE)}</p>"
+    bad = bad_quotes()
+    REGISTRY.clear()
+    if bad:
+        listed = "; ".join(f"{r.section}: {r.quote[:60]!r}" for r in bad)
+        raise ValueError(f"{len(bad)} quote(s) not found verbatim in their record: {listed}")
+    body = "\n".join(sections) + section_limits()
     return (
         f"<!doctype html><html><head><meta charset='utf-8'><title>{html.escape(title)}</title>"
         "<style>body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto}"
