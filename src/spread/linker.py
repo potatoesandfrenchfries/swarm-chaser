@@ -175,3 +175,48 @@ def precision(judged: dict) -> dict:
 
     share, low, high = wilson(sum(judged.values()), len(judged))
     return {"n_judged": len(judged), "n_correct": sum(judged.values()), "precision": share, "low": low, "high": high}
+
+
+# --- documented cases (M7.5) ---------------------------------------------------------------
+
+SPREADS = ("repeats", "endorses")
+PUSHBACK = ("corrects", "disputes")
+
+
+def case_candidates(verdicts: list, edges: list[SpreadEdge]) -> list[str]:
+    """Contradicted claims that were both spread and pushed back on, most linked first, to pick
+    the documented cases from. Picking the final three is still a read-the-transcript step.
+    """
+    contradicted = {v.claim_id for v in verdicts if v.verdict == "contradicted"}
+    by_claim: dict[str, list[SpreadEdge]] = {}
+    for e in edges:
+        if e.claim_id in contradicted:
+            by_claim.setdefault(e.claim_id, []).append(e)
+    both = [c for c, es in by_claim.items() if {e.relation for e in es} & set(SPREADS) and {e.relation for e in es} & set(PUSHBACK)]
+    return sorted(both, key=lambda c: (-len(by_claim[c]), c))
+
+
+def _duration(start_ts: str, end_ts: str) -> str:
+    seconds = _parse_ts(end_ts) - _parse_ts(start_ts)
+    return f"{seconds / 3600:.1f} hours" if seconds < 2 * 86400 else f"{seconds / 86400:.1f} days"
+
+
+def documented_case(claim, edges: list[SpreadEdge]) -> dict:
+    """One case in the shape `report.page.section_3_spread` takes. Duration runs from the claim
+    to its first correction or dispute; with none, it says how long the claim went unchallenged
+    up to the last time it was spread.
+    """
+    mine = sorted((e for e in edges if e.claim_id == claim.claim_id), key=lambda e: _parse_ts(e.ts))
+    spread = [e for e in mine if e.relation in SPREADS]
+    pushback = [e for e in mine if e.relation in PUSHBACK]
+
+    def who(es):
+        return ", ".join(dict.fromkeys(e.agent for e in es)) or "nobody"
+
+    if pushback:
+        duration = _duration(claim.ts, pushback[0].ts)
+    elif spread:
+        duration = f"unchallenged for at least {_duration(claim.ts, spread[-1].ts)}"
+    else:
+        duration = "no later links"
+    return {"claim": claim.quote, "who_said_it": claim.agent, "who_repeated": who(spread), "who_corrected": who(pushback), "duration": duration}
