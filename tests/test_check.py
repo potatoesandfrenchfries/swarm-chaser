@@ -242,3 +242,25 @@ def test_the_shipped_config_names_claude_and_codex_as_different_checker_vendors(
     assert specs["a"].label == "anthropic/claude-sonnet-5-5"
     assert specs["b"].label == "openai/gpt-6.1-sol"
     assert specs["b"].temperature is None
+
+
+def test_both_shipped_checkers_have_a_transport_and_can_carry_a_spend_cap():
+    """Checker B once named a vendor with no transport and had no prices, so a capped run raised. Neither is called live here."""
+    import importlib.util
+
+    from llm.client import ModelClient
+
+    spec = importlib.util.spec_from_file_location("vendors", REPO_ROOT / "adapters" / "vendors.py")
+    vendors = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(vendors)
+    for name, model_spec in checker_specs().items():
+        assert model_spec.vendor in vendors.TRANSPORTS, name
+        ModelClient(model_spec, mode="offline", cache_path=":memory:", spend_cap_usd=5)  # raises without prices
+
+
+def test_the_checker_prompt_is_frozen_in_the_shipped_config():
+    from freeze import load_registry, mismatches
+
+    registry = load_registry()
+    assert "check.checker:CHECKER_PROMPT" in registry
+    assert mismatches(registry) == []
