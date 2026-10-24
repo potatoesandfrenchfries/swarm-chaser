@@ -43,3 +43,6 @@ htmlcov/
 
 # local model-call cache: holds text derived from the village export (research use only)
 cache/
+
+# browser automation scratch output
+.playwright-mcp/

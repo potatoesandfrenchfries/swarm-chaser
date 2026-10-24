@@ -1,0 +1,74 @@
+/* Design tokens: see ui/DESIGN.md. Colour carries meaning; every status also has a glyph and a word. */
+:root {
+  color-scheme: dark;
+
+  /* ground and surfaces: warm graphite */
+  --bg: #1c1b19;
+  --bg-deep: #141311;
+  --bg-sunken: #171614;
+  --surface: #221f1c;
+  --surface-raised: #2a2723;
+  --line: #3a3631;
+  --line-strong: #4b463f;
+
+  /* glass: panels float over the stage and take its light */
+  --glass-fill: linear-gradient(180deg, rgb(255 250 240 / 0.075), rgb(255 250 240 / 0.035));
+  --glass-fill-strong: linear-gradient(180deg, rgb(32 30 27 / 0.86), rgb(26 25 22 / 0.78));
+  --glass-edge: rgb(255 248 235 / 0.11);
+  --glass-highlight: inset 0 1px 0 rgb(255 250 240 / 0.09);
+  --glass-shadow: 0 12px 32px -18px rgb(0 0 0 / 0.7);
+  --glass-blur: blur(18px) saturate(120%);
+
+  /* text */
+  --ink: #ede9e0;
+  --ink-muted: #a39d91;
+  --ink-faint: #7a746a;
+
+  /* meaning */
+  --claim: #f2c641;
+  --claim-soft: rgb(242 198 65 / 0.16);
+  --claim-ink: #1c1b19;
+  --contradicted: #e8553f;
+  --contradicted-text: #f07b67;
+  --supported: #7fbf9a;
+  --correction: #6aa8f0;
+  --correction-soft: rgb(106 168 240 / 0.16);
+  --unverifiable: #a39d91;
+  --focus: #ede9e0;
+
+  /* type */
+  --font-ui: 'Archivo Variable', Archivo, system-ui, sans-serif;
+  --font-record: 'Newsreader Variable', Newsreader, Georgia, serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+
+  /* space */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s7: 28px;
+  --s8: 40px;
+  --s9: 56px;
+  --gutter: 24px;
+
+  --radius-panel: 20px;
+  --radius-card: 12px;
+  --radius-control: 10px;
+
+  /* motion */
+  --dur-feedback: 120ms;
+  --dur-reveal: 240ms;
+  --dur-travel: 950ms;
+  --ease-travel: cubic-bezier(0.45, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+@media (max-width: 700px) {
+  :root {
+    --gutter: 16px;
+    --radius-panel: 16px;
+  }
+}
