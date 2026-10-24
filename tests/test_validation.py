@@ -17,6 +17,7 @@ from eval.validation import (
     perturb,
     perturbation_test,
     tag_false_claim_findings,
+    validation_table,
 )
 from extract.claims import Claim
 
@@ -174,3 +175,26 @@ def test_real_seed_findings_load_and_every_date_parses():
     assert len(findings) == 96  # 84 keep + 12 rewrite, per scope.md
     assert len({f["id"] for f in findings}) == 96
     assert [f["id"] for f in findings if finding_date_range(f["behavior_dates"]) is None] == []
+
+
+def test_validation_table_has_one_row_per_check_with_its_sample_size():
+    rows = validation_table(
+        {"n_perturbable": 300, "n_caught": 240, "share_caught": 0.8},
+        {"n_paired": 500, "agreement": 0.9, "kappa": 0.72, "unreliable": False},
+        {"n_seed_findings": 30, "n_located": 12, "recall": 0.4},
+        {"n_read": 20, "note": "two verdicts cited the wrong day"},
+    )
+    assert [(r["value"], r["n"]) for r in rows] == [("0.80", 300), ("0.72", 500), ("0.40", 30), ("two verdicts cited the wrong day", 20)]
+    assert all(r["note"] for r in rows)
+
+
+def test_validation_table_shows_missing_numbers_and_flags_low_kappa():
+    empty_perturbation = perturbation_test([], lambda c: "supported")
+    empty_recall = known_failure_recall([], set())
+    spot_check = {"n_read": 0, "note": "not done yet"}
+
+    rows = validation_table(empty_perturbation, {"n_paired": 0, "agreement": float("nan"), "kappa": None, "unreliable": False}, empty_recall, spot_check)
+    assert [r["value"] for r in rows[:3]] == ["n/a", "n/a", "n/a"]
+
+    low = validation_table(empty_perturbation, {"n_paired": 10, "agreement": 0.5, "kappa": 0.1, "unreliable": True}, empty_recall, spot_check)
+    assert "unreliable" in low[1]["note"]

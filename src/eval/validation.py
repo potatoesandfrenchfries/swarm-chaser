@@ -257,3 +257,40 @@ def known_failure_recall(seed_findings: list[dict], located_finding_ids: set[str
         "n_located": len(found),
         "recall": len(found) / len(ids) if ids else float("nan"),
     }
+
+
+# --- the validation table (M6.5) ----------------------------------------------------------
+
+
+def _shown(x: Optional[float]) -> str:
+    """Two decimals, or "n/a" when there was nothing to measure (None or NaN)."""
+    return "n/a" if x is None or x != x else f"{x:.2f}"
+
+
+def validation_table(perturbation: dict, agreement: dict, recall: dict, spot_check: dict) -> list[dict]:
+    """One row per check, each with its sample size, for the results page (M12.2).
+
+    Inputs are the dicts from `perturbation_test`, `agreement_report` and
+    `known_failure_recall`, plus `spot_check = {"n_read": int, "note": str}` written by hand
+    after reading about 20 outputs. Every row says what the number does not show, because none
+    of these is precision against human labels (pipeline-rules).
+    """
+    kappa_note = "consistency between vendors, not correctness"
+    if agreement["unreliable"]:
+        kappa_note += f"; below {KAPPA_UNRELIABLE_BELOW}, so treat verdicts as unreliable"
+    return [
+        {
+            "measure": "Perturbation: share of changed claims caught",
+            "value": _shown(perturbation["share_caught"]),
+            "n": perturbation["n_perturbable"],
+            "note": "sensitivity to planted errors, not a false-positive rate",
+        },
+        {"measure": "Cohen's kappa between checker vendors", "value": _shown(agreement["kappa"]), "n": agreement["n_paired"], "note": kappa_note},
+        {
+            "measure": "Known-failure recall",
+            "value": _shown(recall["recall"]),
+            "n": recall["n_seed_findings"],
+            "note": "seed findings are not exhaustive, so this is recall, not precision",
+        },
+        {"measure": "Spot-check by hand", "value": spot_check["note"], "n": spot_check["n_read"], "note": "read by a teammate, not a labelled gold set"},
+    ]
