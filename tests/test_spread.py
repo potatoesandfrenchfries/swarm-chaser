@@ -16,10 +16,13 @@ from spread.linker import (
     model_link,
     precision,
     relation_requests,
+    room_at,
     sample_for_hand_check,
     spread_share,
     spread_share_intervals,
     spread_svg,
+    visible_rows,
+    was_in_room,
 )
 
 
@@ -205,3 +208,33 @@ def test_section_3_says_when_fewer_than_three_cases_are_documented():
     case = documented_case(claim(), [])
     assert "1 of the three documented cases" in section_3_spread({}, [case], {})
     assert "of the three documented cases" not in section_3_spread({}, [case] * 3, {})
+
+
+# Room timelines in the real export's timestamp style: UTC, no suffix.
+TIMELINE = [("2026-03-01 09:00:00", "general"), ("2026-03-01 12:00:00", "builders")]
+
+
+def test_room_at_reads_the_latest_move_at_or_before_a_time():
+    assert room_at(TIMELINE, "2026-03-01 10:00:00") == "general"
+    assert room_at(list(reversed(TIMELINE)), "2026-03-01 12:00:00") == "builders"
+    assert room_at(TIMELINE, "2026-03-01 08:00:00") is None
+
+
+def test_was_in_room_counts_being_there_at_the_start_or_entering_before_the_end():
+    assert was_in_room(TIMELINE, "general", "2026-03-01 10:00:00", "2026-03-01 13:00:00") is True
+    assert was_in_room(TIMELINE, "builders", "2026-03-01 10:00:00", "2026-03-01 13:00:00") is True  # entered at 12:00
+    assert was_in_room(TIMELINE, "builders", "2026-03-01 10:00:00", "2026-03-01 11:00:00") is False
+    assert was_in_room(TIMELINE, "general", "2026-03-01 07:00:00", "2026-03-01 08:00:00") is None  # nothing known
+
+
+def test_visible_rows_drops_authors_who_were_never_in_the_claims_room():
+    c = claim(ts="2026-03-01 10:00:00", agent="a")
+    rows = [
+        row("r1", "2026-03-01 11:00:00", agent="b"),  # in general all along
+        row("r2", "2026-03-01 11:00:00", agent="c"),  # in builders the whole time
+        row("r3", "2026-03-01 11:00:00", agent="d"),  # no timeline: kept, nothing rules it out
+        row("r4", "2026-03-01 09:30:00", agent="b"),  # before the claim
+    ]
+    timelines = {"b": [("2026-03-01 08:00:00", "general")], "c": [("2026-03-01 08:00:00", "builders")]}
+    assert [r["id"] for r in visible_rows(c, rows, "general", timelines)] == ["r1", "r3"]
+    assert [r["id"] for r in visible_rows(c, rows, None, timelines)] == ["r1", "r2", "r3"]  # before rooms existed

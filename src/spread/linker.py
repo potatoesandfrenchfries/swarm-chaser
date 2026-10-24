@@ -42,10 +42,10 @@ class SpreadEdge:
 def could_have_seen(claim_agent: str, claim_ts: str, later_row: dict, channel_members: Optional[set] = None) -> bool:
     """A repeat/correction only counts if the later speaker could plausibly have seen the
     earlier claim (scope.md M7: "counting only those by agents who could have seen the
-    earlier message"). This stub checks only that the later row is after the claim and not
-    by the same agent; CUSTOMISE to also check channel/room membership once the real export's
-    channel structure is known. Times are compared as instants, not strings, so fractional
-    seconds and UTC offsets order correctly.
+    earlier message"): the later row is after the claim, by another agent, and, when
+    `channel_members` is given, by one of them. Rooms that change over time are handled by
+    `visible_rows`. Times are compared as instants, not strings, so fractional seconds and
+    UTC offsets order correctly.
     """
     if _parse_ts(later_row["ts"]) <= _parse_ts(claim_ts):
         return False
@@ -54,6 +54,50 @@ def could_have_seen(claim_agent: str, claim_ts: str, later_row: dict, channel_me
     if channel_members is not None and later_row["agent"] not in channel_members:
         return False
     return True
+
+
+def room_at(timeline: list[tuple[str, str]], ts: str) -> Optional[str]:
+    """The room an agent was in at `ts`, from its `timeline` of (ts, room_id) entries in any
+    order; None if it has no entry at or before `ts`.
+    """
+    t = _parse_ts(ts)
+    past = [(_parse_ts(when), room) for when, room in timeline if _parse_ts(when) <= t]
+    return max(past)[1] if past else None
+
+
+def was_in_room(timeline: list[tuple[str, str]], room: str, start_ts: str, end_ts: str) -> Optional[bool]:
+    """Whether the agent was in `room` at any point from `start_ts` to `end_ts`: in it at the
+    start, or entering it before the end. None when the timeline says nothing about that span.
+    """
+    start, end = _parse_ts(start_ts), _parse_ts(end_ts)
+    if room_at(timeline, start_ts) == room:
+        return True
+    entered = [r for when, r in timeline if start < _parse_ts(when) <= end]
+    if room in entered:
+        return True
+    return None if room_at(timeline, start_ts) is None and not entered else False
+
+
+def visible_rows(claim, later_rows: list[dict], claim_room: Optional[str], room_timelines: dict) -> list[dict]:
+    """The later rows whose author could have seen the claim, for the linkers to run on.
+
+    Village chat had rooms from 2026-02-25 (SCHEMA.md); before that every agent shared one.
+    A row is kept if its author was in `claim_room` at some point between the claim and their
+    own message, per `room_timelines` ({agent: [(ts, room_id), ...]}, built from ENTER_ROOM
+    events at ingest). A claim with no room, or an author whose timeline is silent on that
+    span, is kept: there is no evidence they could not have seen it.
+
+    ponytail: "was in the room at some point" assumes an agent reads a room's recent history on
+    entering. If agents only see messages posted while present, tighten to the claim time.
+    """
+    kept = []
+    for row in later_rows:
+        if not could_have_seen(claim.agent, claim.ts, row):
+            continue
+        if claim_room is not None and was_in_room(room_timelines.get(row["agent"], []), claim_room, claim.ts, row["ts"]) is False:
+            continue
+        kept.append(row)
+    return kept
 
 
 def baseline_link(claim, later_rows: list[dict]) -> list[SpreadEdge]:
