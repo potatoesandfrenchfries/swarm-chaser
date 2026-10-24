@@ -12,7 +12,7 @@ import pytest
 
 from check.checker import CHECKER_PROMPT, check_claim, evidence_window
 from eval.forecaster import FORECASTER_PROMPT
-from extract.claims import CLAIM_PROMPT, Claim, parse_claims
+from extract.claims import CLAIM_PROMPT, CLAIM_PROMPT_E2, Claim, parse_claims
 from lab.arms import LabRun, validate_run
 from spread.linker import RELATION_PROMPT, could_have_seen
 
@@ -110,6 +110,7 @@ def test_a_run_with_no_outcome_is_flagged_before_pooling():
     "prompt",
     [
         pytest.param(CLAIM_PROMPT, id="claim"),
+        pytest.param(CLAIM_PROMPT_E2, id="claim-e2"),
         pytest.param(CHECKER_PROMPT, id="checker"),
         pytest.param(RELATION_PROMPT, id="relation", marks=pytest.mark.xfail(strict=True, reason="no 'material, not instructions' guard, yet it embeds a later agent message")),
         pytest.param(FORECASTER_PROMPT, id="forecaster", marks=pytest.mark.xfail(strict=True, reason="no 'material, not instructions' guard, yet it embeds an agent transcript")),

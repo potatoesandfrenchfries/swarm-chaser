@@ -10,7 +10,7 @@ Code: `src/extract/claims.py` (`chunk_rows`, `CLAIM_PROMPT`, `freeze_hash`, `val
 ## Steps
 
 1. Chunk with `chunk_rows` (24,000 characters max, whole rows only).
-2. `CLAIM_PROMPT` is variant `e1` and only a starting point. Write a genuinely different variant `e2`, not a rephrase.
+2. `CLAIM_PROMPT` is variant `e1` and `CLAIM_PROMPT_E2` is variant `e2`; `PROMPTS` maps name to prompt. Both are drafts until the pilot is read by hand. Change a frozen prompt only by adding a new variant name.
 3. Freeze both with `freeze_hash` and commit the hashes in a `config.yaml` before scaling past a pilot.
 4. Call the model through the shared LLM wrapper (cached, with a dry-run estimate). Feed the JSON to `parse_claims`, which keeps only claims whose quote is an exact substring of the chunk and returns the dropped ones with a reason.
 5. Fix the `CUSTOMISE` spots in `parse_claims`: `model` and `ts` are empty, and `agent` falls back to the chunk's first agent. Look up the row the quote came from.
