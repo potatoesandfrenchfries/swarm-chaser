@@ -108,7 +108,7 @@ def test_a_run_with_no_outcome_is_flagged_before_pooling():
     [
         pytest.param(CLAIM_PROMPT, id="claim"),
         pytest.param(CHECKER_PROMPT, id="checker"),
-        pytest.param(RELATION_PROMPT, id="relation", marks=pytest.mark.xfail(strict=True, reason="no 'material, not instructions' guard, yet it embeds a later agent message")),
+        pytest.param(RELATION_PROMPT, id="relation"),
         pytest.param(FORECASTER_PROMPT, id="forecaster", marks=pytest.mark.xfail(strict=True, reason="no 'material, not instructions' guard, yet it embeds an agent transcript")),
     ],
 )
