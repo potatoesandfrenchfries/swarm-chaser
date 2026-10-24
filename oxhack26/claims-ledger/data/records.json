@@ -1,0 +1,14 @@
+{
+  "_note": "Demo data, invented for this template. Replace with measured public records.",
+  "records": [
+    {
+      "owner": "Acme Cloud",
+      "claim_type": "renewable_100",
+      "label": "share of Acme's mapped sites on grids that ran mostly on low-carbon power",
+      "value": 0.42,
+      "unit": "fraction",
+      "n": 40,
+      "source": "Demo data (not real): stands in for a grid-mix dataset joined to a site list"
+    }
+  ]
+}

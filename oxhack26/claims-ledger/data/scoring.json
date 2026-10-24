@@ -1,0 +1,16 @@
+{
+  "features": [
+    { "name": "annual_wording", "weight": 0.15, "kind": "present", "pattern": "\\bmatch(ed|es|ing)?\\b|\\bannual" },
+    { "name": "future_target", "weight": 0.15, "kind": "present", "pattern": "\\bby 20\\d\\d\\b|\\bwill\\b|\\bbecome\\b" },
+    { "name": "hedged", "weight": 0.10, "kind": "count", "saturate": 2, "pattern": "\\b(goal|aim|strive|expect|committed|commitment|on track|toward|towards|path to|up to)\\b" },
+    { "name": "no_number", "weight": 0.10, "kind": "absent", "pattern": "\\d+(\\.\\d+)?\\s*(%|percent|billion|million|gw|gigawatt|liters|gallons|cubic)" },
+    { "name": "no_boundary", "weight": 0.05, "kind": "absent", "pattern": "data cent|operations|global|u\\.s\\.|devices|sites" }
+  ],
+  "evidence_gap_weight": 0.45,
+  "needed_default": "a measured public record that matches the wording of the claim",
+  "needed_by_type": {
+    "water": "metered yearly water use for each site, published by the company or the local water utility, and the location of each restoration project",
+    "net_zero": "a verified yearly emissions inventory for the whole company",
+    "carbon_neutral": "a verified yearly emissions inventory and a public list of the carbon removals bought"
+  }
+}

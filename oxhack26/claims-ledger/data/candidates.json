@@ -1,0 +1,16 @@
+[
+  {
+    "owner": "Acme Cloud",
+    "url": "demo/acme.html",
+    "claim_type": "renewable_100",
+    "basis": "annual",
+    "text": "100% of the electricity our data centers consumed was matched with renewable energy in 2025, for the third year in a row."
+  },
+  {
+    "owner": "Acme Cloud",
+    "url": "demo/acme.html",
+    "claim_type": "renewable_100",
+    "basis": "annual",
+    "text": "Every Acme data center is powered entirely by wind and solar."
+  }
+]
