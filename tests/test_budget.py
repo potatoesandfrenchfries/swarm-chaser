@@ -62,6 +62,21 @@ def test_an_answer_from_an_unpriced_model_stops_the_total_rather_than_counting_a
         spent_usd(cache, [ModelSpec("v", "m", temperature=None)])  # same model, no prices
 
 
+def test_a_retired_model_in_the_config_still_counts_toward_the_spend(tmp_path):
+    cache = cache_with(tmp_path, ("a", 1, 1))  # $3 at SPEC's prices
+    body = "cap_gbp = 10\nusd_per_gbp = 1.0\n[retired.old]\nvendor = 'v'\nmodel = 'm'\nusd_per_mtok_in = 1000000.0\nusd_per_mtok_out = 2000000.0\n"
+    other = ModelSpec("other", "x", temperature=None, usd_per_mtok_in=1.0, usd_per_mtok_out=1.0)
+    assert remaining_usd(cache, [other], config(tmp_path, body)) == pytest.approx(7.0)
+    with pytest.raises(ValueError, match="v/m"):  # without the retired entry the total refuses, as before
+        remaining_usd(cache, [other], config(tmp_path, "cap_gbp = 10\nusd_per_gbp = 1.0\n"))
+
+
+def test_the_shipped_config_prices_the_gemini_checker_it_replaced():
+    from llm.budget import retired_specs
+
+    assert [(s.vendor, s.model) for s in retired_specs()] == [("gemini", "gemini-3.8-flash")]
+
+
 def test_the_remainder_is_the_budget_less_the_spend_and_never_negative(tmp_path):
     cache = cache_with(tmp_path, ("a", 1, 1))  # $3 spent
     assert remaining_usd(cache, [SPEC], config(tmp_path, "cap_gbp = 4\nusd_per_gbp = 1.0\n")) == pytest.approx(1.0)

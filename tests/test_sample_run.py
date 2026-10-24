@@ -80,11 +80,11 @@ def test_both_checkers_judge_every_claim_and_the_verdicts_keep_the_quote(env, ca
     capsys.readouterr()
     assert env.run("check", "--live") == 0
     verdicts = json.loads((env.out / "verdicts.json").read_text())
-    assert {v["judge"] for v in verdicts} == {"anthropic/claude-haiku-5-5", "gemini/gemini-3.8-flash"}
+    assert {v["judge"] for v in verdicts} == {"anthropic/claude-haiku-5-5", "groq/openai/gpt-oss-120b"}
     assert len(verdicts) == 4 and all(v["quote"] == "I filed the report" and v["verdict"] == "supported" for v in verdicts)
     out = capsys.readouterr().out
     assert "2 claims judged by both; they agree on 2" in out
-    assert {vendor for vendor, kind in env.calls if kind == "check"} == {"anthropic", "gemini"}
+    assert {vendor for vendor, kind in env.calls if kind == "check"} == {"anthropic", "groq"}
 
 
 def test_limit_checks_only_the_first_claims(env, capsys):

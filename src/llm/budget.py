@@ -35,6 +35,19 @@ def total_cap_usd(path: Path = CONFIG) -> float:
     return cap_gbp * rate
 
 
+def retired_specs(path: Path = CONFIG) -> list[ModelSpec]:
+    """Models no longer in use whose answers are still in the cache, from config.toml `[retired.<name>]`.
+
+    Their calls cost real money, so `remaining_usd` keeps counting them. Without a price here the total would
+    refuse to compute (`spent_usd`), which is the safe failure.
+    """
+    table = tomllib.loads(Path(path).read_text(encoding="utf-8")).get("retired", {})
+    return [
+        ModelSpec(t["vendor"], t["model"], temperature=None, usd_per_mtok_in=float(t["usd_per_mtok_in"]), usd_per_mtok_out=float(t["usd_per_mtok_out"]))
+        for t in table.values()
+    ]
+
+
 def spent_usd(cache_path: str | Path, specs: Iterable[ModelSpec]) -> float:
     """Dollars already spent, from the token counts stored with every cached answer, priced by `specs`.
 
@@ -63,5 +76,6 @@ def spent_usd(cache_path: str | Path, specs: Iterable[ModelSpec]) -> float:
 
 
 def remaining_usd(cache_path: str | Path, specs: Iterable[ModelSpec], config: Path = CONFIG) -> float:
-    """What a new client may still spend: the total budget less what the cache says is spent, never below zero."""
-    return max(0.0, total_cap_usd(config) - spent_usd(cache_path, specs))
+    """What a new client may still spend: the total budget less what the cache says is spent, never below zero.
+    Answers from retired models (config.toml `[retired]`) count toward the spend."""
+    return max(0.0, total_cap_usd(config) - spent_usd(cache_path, [*specs, *retired_specs(config)]))
