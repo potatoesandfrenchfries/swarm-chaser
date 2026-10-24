@@ -15,7 +15,7 @@ reaches the network through `adapters/vendors.py`.
 import argparse
 import json
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Callable
 
@@ -76,6 +76,15 @@ def episode_chunks(rows: list[dict]) -> list[dict]:
     return [chunk for episode_rows in by_episode.values() for chunk in chunk_rows(episode_rows)]
 
 
+def with_row_episodes(claims: list[Claim], rows: list[dict]) -> list[Claim]:
+    """Claims whose episode is that of their own row. A claims.json written before chunks were built per
+    episode has the first episode's id on claims from the second, and the checker reads a claim's episode to
+    build its evidence window.
+    """
+    episode_of = {r["id"]: r["episode_id"] for r in rows}
+    return [replace(c, episode=episode_of.get(c.row_id, c.episode)) for c in claims]
+
+
 def extract_stage(args, transports: Transports) -> int:
     rows = read_rows(connect(args.db))
     chunks = pick_chunks(episode_chunks(rows), args.chunks)
@@ -110,9 +119,10 @@ def check_stage(args, transports: Transports) -> int:
         print(f"no {path}; run the extract stage first", file=sys.stderr)
         return 2
     claims = [Claim(**c) for c in json.loads(path.read_text(encoding="utf-8"))]
+    rows = read_rows(connect(args.db))
+    claims = with_row_episodes(claims, rows)
     if args.limit is not None:
         claims = pick_chunks(claims, args.limit)  # spread through the file, so a few claims come from every chunk and both prompts
-    rows = read_rows(connect(args.db))
     specs = checker_specs()
     print(f"{len(claims)} claims to check with {', '.join(s.label for s in specs.values())}")
     requests = checker_requests(claims, rows)

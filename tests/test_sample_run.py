@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from extract.claims import Claim
 from ingest.store import COLUMNS, connect, write_rows
 from llm.client import Completion
 
@@ -117,3 +118,10 @@ def test_publish_builds_the_sample_database_and_warns_when_no_verdicts_exist(env
 def test_publish_without_extracted_claims_says_to_run_extract_first(env, capsys):
     assert env.run("publish") == 2
     assert "run the extract stage first" in capsys.readouterr().err
+
+
+def test_a_claim_stamped_with_the_wrong_episode_is_checked_in_its_rows_episode(env):
+    rows = [{**ROWS[0], "episode_id": "ep2"}]
+    c = Claim("ep1#0-e1-0", "ep1", "a", "m", "t", "chat", "q", "self-report", True, "e1", "r1")
+    orphan = Claim("ep1#0-e1-1", "ep1", "a", "m", "t", "chat", "q", "self-report", True, "e1", "")
+    assert [x.episode for x in sample_run.with_row_episodes([c, orphan], rows)] == ["ep2", "ep1"]
