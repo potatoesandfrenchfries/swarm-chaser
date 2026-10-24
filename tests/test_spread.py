@@ -1,7 +1,15 @@
 from check.checker import Verdict
 from extract.claims import Claim
 from llm.client import Completion, ModelClient, ModelSpec
-from spread.linker import SpreadEdge, baseline_link, could_have_seen, model_link, relation_requests, spread_share
+from spread.linker import (
+    SpreadEdge,
+    baseline_link,
+    could_have_seen,
+    model_link,
+    relation_requests,
+    spread_share,
+    spread_share_intervals,
+)
 
 
 def claim(ts="2025-05-01T00:00:00Z", agent="a", quote="the quarterly report showed a sharp decline in revenue"):
@@ -84,3 +92,16 @@ def test_model_link_through_the_cached_client_makes_no_calls_on_a_rerun(tmp_path
     offline = ModelClient(spec, cache_path=tmp_path / "llm.sqlite")
     assert model_link(claim(), rows, offline.as_caller()) == first
     assert [e.relation for e in first] == ["corrects"] and len(calls) == 1
+
+
+def edge(claim_id, msg, relation="repeats"):
+    return SpreadEdge(claim_id=claim_id, later_message_id=msg, relation=relation, agent="b", ts="2025-05-01T01:00:00Z")
+
+
+def test_spread_share_intervals_gives_counts_and_a_wilson_interval_per_verdict():
+    verdicts = [Verdict(f"c{i}", "contradicted" if i < 4 else "supported", [], "j", 0.9) for i in range(10)]
+    out = spread_share_intervals(verdicts, [edge("c0", "r1"), edge("c1", "r2"), edge("c5", "r3", "corrects")], "repeats")
+    assert (out["contradicted"]["k"], out["contradicted"]["n"], out["contradicted"]["share"]) == (2, 4, 0.5)
+    assert (out["supported"]["k"], out["supported"]["n"]) == (0, 6)  # c5's edge is a correction, not a repeat
+    assert out["contradicted"]["low"] < 0.5 < out["contradicted"]["high"]
+    assert spread_share(verdicts, [edge("c0", "r1"), edge("c1", "r2")], "repeats") == {"contradicted": 0.5, "supported": 0.0}

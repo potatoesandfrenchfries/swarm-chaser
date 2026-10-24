@@ -119,12 +119,23 @@ def model_link(
     return edges
 
 
-def spread_share(verdicts: list, edges: list[SpreadEdge], relation: str) -> dict:
-    """Share of claims (by verdict) that have at least one edge of `relation`. Used to compare
-    false claims against supported claims (M7's headline comparison).
+def spread_share_intervals(verdicts: list, edges: list[SpreadEdge], relation: str) -> dict:
+    """Per verdict: how many claims have at least one edge of `relation` (`k` of `n`), the share,
+    and its Wilson interval. Used to compare false claims against supported claims (M7).
     """
+    from report.headline import wilson
+
     claims_with = {e.claim_id for e in edges if e.relation == relation}
     by_verdict: dict[str, list[int]] = {}
     for v in verdicts:
         by_verdict.setdefault(v.verdict, []).append(1 if v.claim_id in claims_with else 0)
-    return {verdict: (sum(hits) / len(hits) if hits else float("nan")) for verdict, hits in by_verdict.items()}
+    out = {}
+    for verdict, hits in by_verdict.items():
+        share, low, high = wilson(sum(hits), len(hits))
+        out[verdict] = {"k": sum(hits), "n": len(hits), "share": share, "low": low, "high": high}
+    return out
+
+
+def spread_share(verdicts: list, edges: list[SpreadEdge], relation: str) -> dict:
+    """The share alone from `spread_share_intervals`, per verdict."""
+    return {verdict: s["share"] for verdict, s in spread_share_intervals(verdicts, edges, relation).items()}
