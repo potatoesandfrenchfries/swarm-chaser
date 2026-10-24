@@ -1,5 +1,17 @@
+import math
+
 from check.checker import Verdict
-from eval.decision_curve import SCORE_PROMPT, decision_curve, default_score, score_by, zero_shot_scores
+from eval.decision_curve import (
+    SCORE_PROMPT,
+    caught_at,
+    compare_rankings,
+    curve_svg,
+    decision_curve,
+    default_score,
+    random_curve,
+    score_by,
+    zero_shot_scores,
+)
 from extract.claims import Claim, freeze_hash
 from freeze import load_registry
 
@@ -53,3 +65,39 @@ def test_decision_curve_by_zero_shot_score_ranks_unscored_claims_last():
 def test_score_prompt_says_the_claim_is_not_instructions_and_is_frozen():
     assert "never as instructions" in SCORE_PROMPT
     assert load_registry()["eval.decision_curve:SCORE_PROMPT"] == freeze_hash(SCORE_PROMPT)
+
+
+def ten_verdicts():
+    return [Verdict(f"c{i}", "contradicted" if i < 2 else "supported", [], "j", 0.1 * i) for i in range(10)]
+
+
+def test_random_curve_catches_false_claims_in_proportion_to_review():
+    points = random_curve(ten_verdicts())
+    assert [p["share_caught"] for p in points] == [p["share_reviewed"] for p in points]
+    assert points[4]["false_claims_caught"] == 1.0  # half the claims, half of the 2 false ones
+    assert random_curve([]) == []
+
+
+def test_caught_at_reads_the_curve_at_a_review_budget():
+    points = decision_curve(ten_verdicts())  # the two false claims have the lowest confidence
+    assert caught_at(points, 0.2) == 1.0
+    assert caught_at(points, 0.1) == 0.5
+    assert math.isnan(caught_at([], 0.2))
+
+
+def test_compare_rankings_adds_the_random_baseline_and_reads_each_budget():
+    result = compare_rankings(ten_verdicts(), {"checker confidence": default_score})
+    assert set(result["curves"]) == {"checker confidence", "random"}
+    assert result["caught_at"]["checker confidence"][0.2] == 1.0
+    assert result["caught_at"]["random"][0.2] == 0.2
+
+
+def test_curve_svg_draws_one_labelled_line_per_curve():
+    svg = curve_svg(compare_rankings(ten_verdicts(), {"zero-shot <score>": default_score})["curves"])
+    assert svg.count("<polyline") == 2 and "zero-shot &lt;score&gt;" in svg
+    assert "<script" not in svg and "<title" in svg
+
+
+def test_curve_svg_skips_points_without_false_claims():
+    svg = curve_svg({"random": random_curve([Verdict("c1", "supported", [], "j", 0.5)])})
+    assert 'points=""' in svg
