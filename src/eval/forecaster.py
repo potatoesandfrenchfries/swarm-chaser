@@ -87,3 +87,16 @@ def score_forecaster(predictions: list[Prediction]) -> dict:
         "brier_base_rate": brier_score(base_predictions),
         "auc": auc(predictions),  # a constant base-rate predictor has no AUC to compare to
     }
+
+
+def calibration_bins(predictions: list[Prediction], n_bins: int = 5) -> list[tuple[float, float, int]]:
+    """(mean predicted probability, share that really happened, n) for each non-empty bin of equal width over
+    0 to 1, for the calibration chart. A probability of exactly 1.0 goes in the top bin. With few runs most
+    bins hold one or two, which the chart shows by their size; read it with that in mind.
+    """
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be at least 1, got {n_bins}")
+    bins: list[list[Prediction]] = [[] for _ in range(n_bins)]
+    for p in predictions:
+        bins[min(int(p.probability * n_bins), n_bins - 1)].append(p)
+    return [(sum(p.probability for p in b) / len(b), sum(p.outcome for p in b) / len(b), len(b)) for b in bins if b]
