@@ -33,7 +33,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --only-group dev
-      - run: uv run --no-sync ruff check src tests adapters
+      - run: uv run --no-sync ruff check src tests adapters whitebox
 
   lockfile:
     name: uv.lock is current

@@ -65,7 +65,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # Pulled in unchanged from branch m9-whitebox-llm so the two branches merge without a conflict.
-"src/sandbox/classify.py" = ["I001", "W292"]
+"whitebox/classify.py" = ["I001", "W292"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["adapters", "check", "eval", "extract", "ingest", "lab", "llm", "report", "sandbox", "spread"]
@@ -73,8 +73,6 @@ known-first-party = ["adapters", "check", "eval", "extract", "ingest", "lab", "l
 [tool.coverage.run]
 source = ["src"]
 branch = true
-# Needs scikit-learn, which the fast CI job does not install; tests/test_classify.py skips without it.
-omit = ["src/sandbox/classify.py"]
 
 [tool.coverage.report]
 show_missing = true

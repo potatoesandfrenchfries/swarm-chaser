@@ -29,12 +29,10 @@ SRC_PACKAGES = {p.name for p in SRC.iterdir() if p.is_dir() and not p.name.start
 # `test-fast` job in .github/workflows/ci.yml in the same change.
 ALLOWED_THIRD_PARTY: set[str] = set()
 
-# The one exception: the whitebox probe fits a scikit-learn classifier on sandbox runs (scope.md bans
-# fitting on village data, not on sandbox runs). It is skipped when sklearn is missing, so the fast job
-# still needs nothing but pytest. `test_only_the_sandbox_package_may_use_the_sandbox_classifier` keeps it
-# away from the village pipeline.
-SANDBOX_CLASSIFIER = "src/sandbox/classify.py"
-FILE_THIRD_PARTY = {SANDBOX_CLASSIFIER: {"numpy", "sklearn"}}
+# The whitebox half (torch, scikit-learn, activations) lives in whitebox/, which is built into a Docker image
+# and is not part of src/. `test_the_container_and_src_do_not_import_each_other` keeps the two apart.
+WHITEBOX = REPO_ROOT / "whitebox"
+WHITEBOX_MODULES = {p.stem for p in WHITEBOX.glob("*.py")}
 
 
 # --- the shared vocabulary ---------------------------------------------------------------------
@@ -125,7 +123,7 @@ def test_src_imports_only_the_standard_library_and_itself():
     offenders = {
         str(f.relative_to(REPO_ROOT)): sorted(bad)
         for f in SRC_FILES
-        if (bad := _imports(f) - set(sys.stdlib_module_names) - SRC_PACKAGES - ALLOWED_THIRD_PARTY - FILE_THIRD_PARTY.get(str(f.relative_to(REPO_ROOT)), set()))
+        if (bad := _imports(f) - set(sys.stdlib_module_names) - SRC_PACKAGES - ALLOWED_THIRD_PARTY)
     }
     assert not offenders, f"third-party imports need an entry in ALLOWED_THIRD_PARTY and the CI install: {offenders}"
 
@@ -154,17 +152,31 @@ def test_src_fits_nothing_to_village_data():
     hits = [
         f"{f.relative_to(REPO_ROOT)}:{n}"
         for f in SRC_FILES
-        if str(f.relative_to(REPO_ROOT)) != SANDBOX_CLASSIFIER
         for n, line in enumerate(f.read_text().splitlines(), 1)
         if fitting.search(line)
     ]
     assert not hits, hits
 
 
-def test_only_the_sandbox_package_may_use_the_sandbox_classifier():
-    """The exemption above covers sandbox runs only. A village stage importing it would be fitting on village data."""
+def test_only_the_sandbox_package_may_use_the_sandbox_package():
+    """The sandbox models are fitted on sandbox runs only. A village stage importing them would be fitting on village data."""
     users = [str(f.relative_to(REPO_ROOT)) for f in SRC_FILES if f.parent.name != "sandbox" and "sandbox" in _imports(f)]
     assert not users, users
+
+
+def test_the_container_and_src_do_not_import_each_other():
+    """The whitebox runs in a container built from whitebox/ alone; the blackbox and the orchestrator run outside it."""
+    into_container = {str(f.relative_to(REPO_ROOT)): sorted(_imports(f) & WHITEBOX_MODULES) for f in SRC_FILES if _imports(f) & WHITEBOX_MODULES}
+    assert not into_container, f"src/ must reach the whitebox through the container (sandbox.orchestrator), not by import: {into_container}"
+    out_of_container = {f.name: sorted(_imports(f) & SRC_PACKAGES) for f in WHITEBOX.glob("*.py") if _imports(f) & SRC_PACKAGES}
+    assert not out_of_container, f"the image is built from whitebox/ only, so it cannot import from src/: {out_of_container}"
+
+
+def test_the_image_is_built_from_the_whitebox_folder_alone():
+    from sandbox import orchestrator
+
+    assert orchestrator.WHITEBOX_DIR == WHITEBOX and (WHITEBOX / "Dockerfile").is_file()
+    assert orchestrator.build_command("img")[-1] == str(WHITEBOX)
 
 
 def test_src_makes_no_network_or_model_calls():

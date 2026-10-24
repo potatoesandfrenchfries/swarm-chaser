@@ -1,15 +1,22 @@
-"""The whitebox classifier (`sandbox.classify`) and the blackbox model (`sandbox.blackbox`) must stay comparable.
+"""The whitebox classifier (`whitebox/classify.py`, inside the container) and the blackbox model (`sandbox.blackbox`) must stay comparable.
 
 Skipped when scikit-learn is not installed (the fast CI job), where only the stdlib blackbox runs.
 """
 
 import random
+import sys
 
 import pytest
 
+from conftest import REPO_ROOT
+
 pytest.importorskip("sklearn")
 
-from sandbox import blackbox, classify  # noqa: E402
+sys.path.insert(0, str(REPO_ROOT / "whitebox"))  # its modules import each other flat, as they do in the image
+
+import classify  # noqa: E402
+
+from sandbox import blackbox  # noqa: E402
 
 
 def synthetic(n=60, signal=3.0, seed=3):
