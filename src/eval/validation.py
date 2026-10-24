@@ -34,49 +34,61 @@ def perturb(quote: str, rng: random.Random, names: tuple = ()) -> Optional[str]:
     than silently perturbing nothing. `names` must be in a fixed order (e.g. sorted) for the
     swap to be reproducible by seed.
     """
+    changed = _perturb(quote, rng, names)
+    return changed[1] if changed else None
+
+
+def _perturb(quote: str, rng: random.Random, names: tuple) -> Optional[tuple[str, str]]:
+    """`perturb`, also saying which kind of change it made: "number", "date" or "name"."""
     if m := _NUMBER.search(quote):
         n = int(float(m.group(0)))
         delta = rng.randint(1, 10)
         # Never below zero: "-3 tests passed" is a giveaway, not a planted error.
         new = str(n - delta if n - delta >= 0 and rng.random() < 0.5 else n + delta)
-        return quote[: m.start()] + new + quote[m.end() :]
+        return "number", quote[: m.start()] + new + quote[m.end() :]
 
     if m := _DATE_WORD.search(quote):
         pool = _MONTHS if m.group(0) in _MONTHS else _WEEKDAYS
         new = rng.choice([w for w in pool if w != m.group(0)])
-        return quote[: m.start()] + new + quote[m.end() :]
+        return "date", quote[: m.start()] + new + quote[m.end() :]
 
     for name in names:
         if m := re.search(rf"\b{re.escape(name)}\b", quote):
             others = [x for x in names if x != name]
             if not others:
                 return None
-            return quote[: m.start()] + rng.choice(others) + quote[m.end() :]
+            return "name", quote[: m.start()] + rng.choice(others) + quote[m.end() :]
     return None
 
 
 def perturbation_test(
-    supported_claims: list, run_checker: Callable[[object], str], seed: int = 0
+    supported_claims: list, run_checker: Callable[[object], str], seed: int = 0, by_kind: Optional[dict] = None
 ) -> dict:
     """For every `supported` claim that can be perturbed, change a number, date or agent name
     and re-run the checker (`run_checker(claim_with_perturbed_quote) -> verdict_str`). Report
     the share caught (verdict != "supported"), which estimates how often a planted error would
     be caught — a label-free sensitivity estimate, not a false-positive rate.
+
+    Pass a dict as `by_kind` to have it filled with the counts split by kind of change,
+    `{"number": {"n": 50, "n_caught": 40}, ...}`, since a checker can catch one kind far more
+    often than another.
     """
     rng = random.Random(seed)
     # Swap names among the agents in the run, so a changed name is always a plausible one.
     names = tuple(sorted({c.agent for c in supported_claims}))
-    results = []
+    by_kind = {} if by_kind is None else by_kind
     for claim in supported_claims:
-        new_quote = perturb(claim.quote, rng, names)
-        if new_quote is None:
+        changed = _perturb(claim.quote, rng, names)
+        if changed is None:
             continue
-        perturbed = _with_quote(claim, new_quote)
-        verdict = run_checker(perturbed)
-        results.append(verdict != "supported")
+        kind, new_quote = changed
+        verdict = run_checker(_with_quote(claim, new_quote))
+        counts = by_kind.setdefault(kind, {"n": 0, "n_caught": 0})
+        counts["n"] += 1
+        counts["n_caught"] += verdict != "supported"
 
-    n = len(results)
-    caught = sum(results)
+    n = sum(k["n"] for k in by_kind.values())
+    caught = sum(k["n_caught"] for k in by_kind.values())
     return {
         "n_perturbable": n,
         "n_caught": caught,
@@ -114,6 +126,23 @@ def cohen_kappa(a: list, b: list) -> Optional[float]:
 # statistical rule. Pick a value you'd actually act on, and say in the write-up what
 # "unreliable" means for the headline (M6 asks this to be reported, not hidden).
 KAPPA_UNRELIABLE_BELOW = 0.6
+KAPPA_BOOTSTRAP_RESAMPLES = 1000
+
+
+def kappa_interval(a: list, b: list, resamples: int = KAPPA_BOOTSTRAP_RESAMPLES, seed: int = 0) -> tuple[Optional[float], Optional[float]]:
+    """95% interval for `cohen_kappa(a, b)`: resample the claim pairs with replacement and take the
+    2.5th and 97.5th percentiles. Seeded, so the page shows the same interval on every rebuild.
+    (None, None) when there are no pairs.
+
+    ponytail: a plain percentile bootstrap, which runs narrow for a few dozen pairs or a kappa near
+    1; switch to BCa if the sample stays that small.
+    """
+    if not a:
+        return None, None
+    rng = random.Random(seed)
+    pairs = list(zip(a, b))
+    kappas = sorted(cohen_kappa(*zip(*(rng.choice(pairs) for _ in pairs))) for _ in range(resamples))
+    return kappas[int(0.025 * (resamples - 1))], kappas[int(0.975 * (resamples - 1))]
 
 
 def _first_verdicts(verdicts: list) -> dict:
@@ -139,6 +168,7 @@ def agreement_report(verdicts_a: list, verdicts_b: list) -> dict:
     b_labels = [p[1] for p in paired]
     agree = sum(x == y for x, y in zip(a_labels, b_labels)) / len(paired) if paired else float("nan")
     kappa = cohen_kappa(a_labels, b_labels)
+    kappa_low, kappa_high = kappa_interval(a_labels, b_labels)
     return {
         "judges": (", ".join(sorted({v.judge for v in verdicts_a})), ", ".join(sorted({v.judge for v in verdicts_b}))),
         "n_paired": len(paired),
@@ -148,6 +178,8 @@ def agreement_report(verdicts_a: list, verdicts_b: list) -> dict:
         "n_duplicate_b": len(verdicts_b) - len(by_id_b),
         "agreement": agree,
         "kappa": kappa,
+        "kappa_low": kappa_low,
+        "kappa_high": kappa_high,
         "unreliable": kappa is not None and kappa < KAPPA_UNRELIABLE_BELOW,
     }
 
@@ -238,9 +270,9 @@ def locate_findings(false_claim_findings: list[dict], contradicted_claims: list)
     """
     from datetime import datetime, timezone
 
-    from ingest.village import _parse_ts
+    from ingest.village import parse_ts
 
-    claim_days = [(c.agent, datetime.fromtimestamp(_parse_ts(c.ts), timezone.utc).date().isoformat()) for c in contradicted_claims if c.ts]
+    claim_days = [(c.agent, datetime.fromtimestamp(parse_ts(c.ts), timezone.utc).date().isoformat()) for c in contradicted_claims if c.ts]
     found = set()
     for f in false_claim_findings:
         span = finding_date_range(f.get("behavior_dates", ""))
@@ -299,14 +331,29 @@ def _shown(x: Optional[float]) -> str:
     return "n/a" if x is None or x != x else f"{x:.2f}"
 
 
-def validation_table(perturbation: dict, agreement: dict, recall: dict, spot_check: dict) -> list[dict]:
+def _kappa_shown(agreement: dict) -> str:
+    """Kappa as "0.72 (0.61-0.81)" when `agreement_report` gave its interval, else two decimals."""
+    low, high = agreement.get("kappa_low"), agreement.get("kappa_high")
+    if agreement["kappa"] is None or low is None:
+        return _shown(agreement["kappa"])
+    return f"{agreement['kappa']:.2f} ({low:.2f}-{high:.2f})"
+
+
+def _kind_split(by_kind: dict) -> str:
+    """The note's split by kind, such as "; caught: numbers 40/50, dates 3/5", for the kinds tried, in a fixed order."""
+    parts = [f"{label} {by_kind[k]['n_caught']}/{by_kind[k]['n']}" for k, label in (("number", "numbers"), ("date", "dates"), ("name", "names")) if k in by_kind]
+    return f"; caught: {', '.join(parts)}" if parts else ""
+
+
+def validation_table(perturbation: dict, agreement: dict, recall: dict, spot_check: dict, perturbation_by_kind: Optional[dict] = None) -> list[dict]:
     """One row per check, each with its sample size, for the results page (M12.2).
 
     Inputs are the dicts from `perturbation_test`, `agreement_report` and
     `known_failure_recall`, plus `spot_check = {"n_read": int, "note": str}` written by hand
     after reading about 20 outputs. Shares carry their 95% Wilson interval. Every row says what
     the number does not show, because none of these is precision against human labels
-    (pipeline-rules).
+    (pipeline-rules). `perturbation_by_kind`, filled by `perturbation_test`, adds the caught
+    count for each kind of change to the perturbation row's note.
     """
     kappa_note = "consistency between vendors, not correctness"
     if agreement["unreliable"]:
@@ -316,9 +363,9 @@ def validation_table(perturbation: dict, agreement: dict, recall: dict, spot_che
             "measure": "Perturbation: share of changed claims caught",
             "value": _with_interval(perturbation["n_caught"], perturbation["n_perturbable"]),
             "n": perturbation["n_perturbable"],
-            "note": "sensitivity to planted errors, not a false-positive rate",
+            "note": "sensitivity to planted errors, not a false-positive rate" + _kind_split(perturbation_by_kind or {}),
         },
-        {"measure": "Cohen's kappa between checker vendors", "value": _shown(agreement["kappa"]), "n": agreement["n_paired"], "note": kappa_note},
+        {"measure": "Cohen's kappa between checker vendors", "value": _kappa_shown(agreement), "n": agreement["n_paired"], "note": kappa_note},
         {
             "measure": "Known-failure recall",
             "value": _with_interval(recall["n_located"], recall["n_seed_findings"]),

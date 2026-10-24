@@ -152,7 +152,7 @@ def load_memories(
     return load_jsonl(path, to_row, stats=stats)
 
 
-def _parse_ts(ts: str) -> float:
+def parse_ts(ts: str) -> float:
     """ISO 8601 to epoch seconds. A value with no zone is taken to be UTC, not local time."""
     dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
     return (dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt).timestamp()
@@ -165,14 +165,14 @@ def join_report(messages: list[dict], memories: list[dict], tolerance: float = J
     """
     by_agent = {}
     for m in messages:
-        by_agent.setdefault(m["agent"], []).append(_parse_ts(m["ts"]))
+        by_agent.setdefault(m["agent"], []).append(parse_ts(m["ts"]))
     for times in by_agent.values():
         times.sort()
 
     unmatched = []
     for mem in memories:
         times = by_agent.get(mem["agent"], [])
-        ts = _parse_ts(mem["ts"])
+        ts = parse_ts(mem["ts"])
         if not any(abs(ts - t) <= tolerance for t in times):
             unmatched.append(mem["id"])
 
@@ -190,4 +190,4 @@ def episode_rows(messages: list[dict], memories: list[dict], episode_id: str) ->
     chunks over (scope.md's `ingest/` -> `extract/` boundary).
     """
     rows = [r for r in messages + memories if r["episode_id"] == episode_id]
-    return sorted(rows, key=lambda r: _parse_ts(r["ts"]))
+    return sorted(rows, key=lambda r: parse_ts(r["ts"]))

@@ -65,4 +65,4 @@ def test_sensitivity_range_spans_settings():
 
 def test_headline_has_all_sections():
     h = headline([rec("contradicted"), rec("supported")])
-    assert set(h) == {"overall", "sensitivity", "by_model", "by_month"}
+    assert set(h) == {"overall", "sensitivity", "by_model", "by_month", "by_model_month"}

@@ -233,14 +233,14 @@ def test_checker_specs_need_two_vendors(tmp_path):
     assert specs["a"].temperature is None  # sent to no vendor unless the config sets one
 
 
-def test_the_shipped_config_names_claude_and_codex_as_different_checker_vendors():
+def test_the_shipped_config_names_haiku_and_gpt_oss_on_openrouter_as_different_checker_vendors():
     import tomllib
 
     table = tomllib.loads((REPO_ROOT / "config.toml").read_text(encoding="utf-8"))["checkers"]
     assert list(table) == ["a", "b"]
     specs = checker_specs()
-    assert specs["a"].label == "anthropic/claude-sonnet-5-5"
-    assert specs["b"].label == "openai/gpt-6.1-sol"
+    assert specs["a"].label == "anthropic/claude-haiku-5-5"
+    assert specs["b"].label == "openrouter/openai/gpt-oss-120b"
     assert specs["b"].temperature is None
 
 
@@ -264,3 +264,16 @@ def test_the_checker_prompt_is_frozen_in_the_shipped_config():
     registry = load_registry()
     assert "check.checker:CHECKER_PROMPT" in registry
     assert mismatches(registry) == []
+
+
+def test_a_claim_time_with_no_zone_is_read_as_utc_in_any_local_zone(monkeypatch):
+    import time
+
+    monkeypatch.setenv("TZ", "Pacific/Kiritimati")  # UTC+14, so reading the time as local shifts it by 14 hours
+    time.tzset()
+    try:
+        row = {"id": "r1", "episode_id": "e1", "agent": "a", "ts": "2025-05-01T23:00:00Z", "source": "chat", "text": "done"}
+        assert [r["id"] for r in evidence_window([row], "2025-05-01T00:00:00", "a")] == ["r1"]  # 23 hours after, inside 24
+    finally:
+        monkeypatch.delenv("TZ")
+        time.tzset()

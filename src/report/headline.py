@@ -53,6 +53,16 @@ def breakdown(records, key):
     return {g: shares(rs) for g, rs in sorted(groups.items())}
 
 
+def by_model_month(records):
+    """Shares for each model within each month, as {model: {month: shares}}. A model that was not active in a
+    month has no entry for it. This is where the confound shows: models that ran in different months cannot be
+    compared by their by-model shares alone."""
+    out = {}
+    for model in breakdown(records, "model"):
+        out[model] = breakdown([r for r in records if r["model"] == model], month)
+    return out
+
+
 def sensitivity(records):
     """Shares for each (extractor, judge) setting, and the range each share takes across them.
 
@@ -74,4 +84,5 @@ def headline(records):
         "sensitivity": sensitivity(records),
         "by_model": breakdown(records, "model"),
         "by_month": breakdown(records, month),
+        "by_model_month": by_model_month(records),
     }

@@ -250,6 +250,25 @@ def test_a_missing_openai_key_names_the_variable(monkeypatch):
         load_vendors().make_transport("openai")
 
 
+def test_groq_points_at_its_own_endpoint_and_reads_its_own_key(monkeypatch):
+    pytest.importorskip("tenacity")
+    pytest.importorskip("dotenv")
+    built = {}
+    monkeypatch.setitem(sys.modules, "openai", fake_module("openai", OpenAI=lambda **kw: built.update(kw) or types.SimpleNamespace()))
+    monkeypatch.setenv("GROQ_API_KEY", "placeholder")
+    load_vendors().make_transport("groq")
+    assert built == {"api_key": "placeholder", "base_url": "https://api.groq.com/openai/v1"}
+
+
+def test_groq_without_its_key_names_the_missing_variable(monkeypatch):
+    dotenv = pytest.importorskip("dotenv")
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda: None)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setitem(sys.modules, "openai", fake_module("openai", OpenAI=lambda **kw: None))
+    with pytest.raises(RuntimeError, match="GROQ_API_KEY"):
+        load_vendors().make_transport("groq")
+
+
 def test_openrouter_still_points_at_its_own_endpoint(monkeypatch):
     pytest.importorskip("tenacity")
     pytest.importorskip("dotenv")

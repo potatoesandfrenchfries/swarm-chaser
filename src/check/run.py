@@ -1,7 +1,7 @@
 """Run every claim through each checker vendor (MVP M4.3).
 
     specs = checker_specs()                      # two ModelSpec from config.toml [checkers]
-    client = ModelClient(specs["a"], transport, mode="live", spend_cap_usd=5)
+    client = ModelClient(specs["a"], transport, mode="live", spend_cap_usd=remaining_usd(DEFAULT_CACHE, specs.values()))
     verdicts = run_checks(claims, rows, client.as_caller(), judge_name=specs["a"].label)
 
 Each vendor gets its own `ModelClient`, so its answers are cached under its own key and a rerun from

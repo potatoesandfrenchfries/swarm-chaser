@@ -174,8 +174,9 @@ def parse_claims(llm_json: dict, chunk: dict, extractor: str = "e1") -> tuple[li
     """
     kept, dropped = [], []
     for i, raw in enumerate(llm_json.get("claims", [])):
-        quote = raw.get("quote", "")
-        if not validate_quote(quote, chunk["text"]):
+        # An empty quote is a substring of every chunk, so the substring check alone would keep it.
+        quote = raw.get("quote") if isinstance(raw, dict) else None
+        if not isinstance(quote, str) or not quote.strip() or not validate_quote(quote, chunk["text"]):
             dropped.append({"chunk_id": chunk["chunk_id"], "index": i, "reason": "quote_not_in_chunk"})
             continue
         agent, model, ts, source, row_id = raw.get("agent", chunk["agents"][0] if chunk["agents"] else ""), "", "", "chat", ""
@@ -187,7 +188,7 @@ def parse_claims(llm_json: dict, chunk: dict, extractor: str = "e1") -> tuple[li
             agent, model, ts, source, row_id = row["agent"], row["model"], row["ts"], row["source"], row["id"]
         kept.append(
             Claim(
-                claim_id=f"{chunk['chunk_id']}-{i}",
+                claim_id=f"{chunk['chunk_id']}-{extractor}-{i}",  # the extractor is in the id: e1 and e2 read the same chunks
                 episode=chunk["episode_id"],
                 agent=agent,
                 model=model,

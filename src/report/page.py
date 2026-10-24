@@ -13,6 +13,7 @@ it, rather than duplicating the assembly logic in two places.
 import html
 from pathlib import Path
 
+from report.charts import calibration_svg, dot_whisker_svg, grid_svg, headline_svg
 from report.quotes import REGISTRY, bad_quotes, register_quote
 
 LIMITS_NOTE = (
@@ -62,16 +63,36 @@ def section_1_headline(headline_data: dict) -> str:
     overall = _shares_table({"overall": headline_data["overall"]})
     rng = headline_data["sensitivity"]["range"]
     range_text = "; ".join(f"{v}: {rng[v]['min']:.0%}–{rng[v]['max']:.0%}" for v in rng)
-    return f"<h2>1. Headline</h2>{overall}<p>Range across extraction prompts and checker vendors: {html.escape(range_text)}</p>"
+    chart = headline_svg(headline_data["overall"], headline_data["sensitivity"]["per_setting"])
+    return f"<h2>1. Headline</h2>{chart}{overall}<p>Range across extraction prompts and checker vendors: {html.escape(range_text)}</p>"
+
+
+def _contradicted_chart(shares_by_group: dict, by: str) -> str:
+    """The contradicted share of each group in a `breakdown()`-shaped dict, as a dot-and-whisker chart.
+    A group with no claims has no share to plot, so it is left out of the chart and stays in the table.
+    """
+    rows = [(group, s["contradicted"]["p"], s["contradicted"]["low"], s["contradicted"]["high"], s["n"]) for group, s in shares_by_group.items() if s["n"]]
+    return dot_whisker_svg(rows, f"Share of claims contradicted by {by}, with 95% intervals", f"contradicted-by-{by}")
+
+
+def _model_month_grid(by_model_month: dict) -> str:
+    """The grid chart from `headline()["by_model_month"]`: months across, models down, in sorted order."""
+    models = sorted(by_model_month)
+    months = sorted({month for per_month in by_model_month.values() for month in per_month})
+    cells = {(m, mo): (s["n"], s["contradicted"]["p"]) for m, per_month in by_model_month.items() for mo, s in per_month.items() if s["n"]}
+    return grid_svg(models, months, cells)
 
 
 def section_2_by_model_month(headline_data: dict) -> str:
     """MVP.md Goal item 2: false-claim rate by model and by month."""
+    grid = _model_month_grid(headline_data["by_model_month"]) if headline_data.get("by_model_month") else ""
     return (
         "<h2>2. By model and month</h2>"
-        "<p>Models ran in different periods, so model and time are confounded (MVP.md M5).</p>"
-        f"<h3>By model</h3>{_shares_table(headline_data['by_model'])}"
-        f"<h3>By month</h3>{_shares_table(headline_data['by_month'])}"
+        "<p>Models ran in different periods, so model and time are confounded (MVP.md M5). The grid shows which "
+        "months each model has claims in; compare two models only where their rows overlap.</p>"
+        f"{grid}"
+        f"<h3>By model</h3>{_contradicted_chart(headline_data['by_model'], 'model')}{_shares_table(headline_data['by_model'])}"
+        f"<h3>By month</h3>{_contradicted_chart(headline_data['by_month'], 'month')}{_shares_table(headline_data['by_month'])}"
     )
 
 
@@ -135,18 +156,48 @@ def _pct(x: float) -> str:
     return "n/a" if x != x else f"{x:.0%}"
 
 
-def section_6_sandbox(handling: dict, forecaster_score: dict) -> str:
-    """MVP.md Goal item 6: forecaster accuracy and the handling result, in the sandbox."""
+def _number(value):
+    """A float to three decimals, and NaN or None to "n/a"; anything else as it is. Long floats are unreadable in a table."""
+    if value is None or (isinstance(value, float) and value != value):
+        return "n/a"
+    return f"{value:.3f}" if isinstance(value, float) else value
+
+
+def _acting_rate_chart(handling: dict) -> str:
+    """Acting rate per arm with a Wilson interval. An arm with no runs has no rate, so it is left out of the chart."""
+    from report.headline import wilson
+
+    arms = [("No intervention", handling["without_intervention"])] + [(f"With intervention ({name})", s) for name, s in handling["with_intervention"].items()]
+    rows = []
+    for label, arm in arms:
+        if arm["n"]:
+            p, low, high = wilson(arm["k"], arm["n"])
+            rows.append((label, p, low, high, arm["n"]))
+    return dot_whisker_svg(rows, "Share of runs where the agent acted on the planted claim, with 95% intervals", "acting-rate-title") if rows else ""
+
+
+def section_6_sandbox(handling: dict, forecaster_score: dict, predictions: list[dict] | None = None) -> str:
+    """MVP.md Goal item 6: forecaster accuracy and the handling result, in the sandbox. `predictions`, a list of
+    {"probability", "outcome"}, adds the calibration chart; without it the section shows the metrics alone."""
+    from eval.forecaster import Prediction, calibration_bins
+
     w = handling["without_intervention"]
     rows = [["No intervention", w["n"], f"{w['rate']:.0%}" if w["n"] else "n/a"]]
     for strategy, s in handling["with_intervention"].items():
         rows.append([f"With intervention ({strategy})", s["n"], f"{s['rate']:.0%}" if s["n"] else "n/a"])
-    forecaster_rows = [[k, v] for k, v in forecaster_score.items()]
+    forecaster_rows = [[k, _number(v)] for k, v in forecaster_score.items()]
+    calibration = calibration_svg(calibration_bins([Prediction(str(i), p["probability"], bool(p["outcome"])) for i, p in enumerate(predictions)])) if predictions else ""
     return (
         "<h2>6. Sandbox: forecaster and handling</h2>"
-        f"<h3>Acting rate</h3>{_table(['Arm', 'n', 'Rate'], rows)}"
-        f"<h3>Forecaster</h3>{_table(['Metric', 'Value'], forecaster_rows)}"
+        f"<h3>Acting rate</h3>{_acting_rate_chart(handling)}{_table(['Arm', 'n', 'Rate'], rows)}"
+        f"<h3>Forecaster</h3>{calibration}{_table(['Metric', 'Value'], forecaster_rows)}"
     )
+
+
+def unavailable_section(heading: str, reason: str) -> str:
+    """A section whose data does not exist yet. The page shows the gap and says why, so a missing result is not
+    mistaken for a null one."""
+    return f"<h2>{html.escape(heading)}</h2><p class='gap'><strong>Not available.</strong> {html.escape(reason)}</p>"
 
 
 def section_limits() -> str:
@@ -155,9 +206,10 @@ def section_limits() -> str:
     return f"<h2>Limits</h2><p>{html.escape(LIMITS_NOTE)}</p><p>What this page does not show:</p><ul>{items}</ul>"
 
 
-def build_page(sections: list[str], title: str = "claim-spread: results") -> str:
-    """Wrap pre-rendered section HTML into one static page. CUSTOMISE styling as wanted;
-    kept to inline CSS and no JS so `python -m http.server` is enough to view it.
+def build_page(sections: list[str], title: str = "claim-spread: results", banner: str | None = None) -> str:
+    """Wrap pre-rendered section HTML into one static page. Inline CSS, no JS, so `python -m http.server` is enough
+    to view it, and colours follow the reader's light or dark setting. `banner`, if given, is shown above the
+    title in a box that cannot be missed (used to mark a page built from mock data).
 
     Raises ValueError if any quote a section registered is not an exact substring of its
     record (MVP.md success criterion: 100%), then clears the registry for the next build.
@@ -168,11 +220,18 @@ def build_page(sections: list[str], title: str = "claim-spread: results") -> str
         listed = "; ".join(f"{r.section}: {r.quote[:60]!r}" for r in bad)
         raise ValueError(f"{len(bad)} quote(s) not found verbatim in their record: {listed}")
     body = "\n".join(sections) + section_limits()
+    banner_html = f"<div class='banner' role='note'>{html.escape(banner)}</div>" if banner else ""
     return (
-        f"<!doctype html><html><head><meta charset='utf-8'><title>{html.escape(title)}</title>"
-        "<style>body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto}"
-        "table{border-collapse:collapse;margin:0.5rem 0}td,th{border:1px solid #ccc;padding:4px 8px;text-align:left}</style>"
-        f"</head><body><h1>{html.escape(title)}</h1>{body}</body></html>"
+        f"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>"
+        f"<title>{html.escape(title)}</title>"
+        "<style>:root{color-scheme:light dark;--rule:#8886}"
+        "body{font-family:system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 16px;line-height:1.45}"
+        "table{border-collapse:collapse;margin:0.5rem 0;max-width:100%;display:block;overflow-x:auto}"
+        "td,th{border:1px solid var(--rule);padding:4px 8px;text-align:left}"
+        "svg{display:block;margin:0.5rem 0;color:inherit}"
+        ".banner{border:3px solid #b45309;background:#fef3c7;color:#451a03;padding:12px 16px;margin:0 0 1.5rem;font-weight:600}"
+        ".gap{border-left:4px solid var(--rule);padding-left:12px}</style>"
+        f"</head><body>{banner_html}<h1>{html.escape(title)}</h1>{body}</body></html>"
     )
 
 
