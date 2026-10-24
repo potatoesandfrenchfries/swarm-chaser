@@ -9,3 +9,4 @@
 # frozen prompt means a new variant name (pipeline-rules), not an edited hash.
 
 [prompts]
+"spread.linker:RELATION_PROMPT" = "2690f0ab9061aa0519a85f7969f071250bd5dfa1c9ede71d74ad305c0a5cc35d"
