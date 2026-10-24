@@ -89,19 +89,30 @@ Return JSON: {"relation": "repeats"|"endorses"|"corrects"|"disputes"|"none"}
 """
 
 
+def _relation_input(claim, row: dict) -> str:
+    return f"EARLIER CLAIM: {claim.quote}\n\nLATER MESSAGE: {row['text']}"
+
+
+def relation_requests(claims: list, later_rows: list[dict]) -> list[tuple[str, str]]:
+    """The (prompt, text) pairs `model_link` would send for these claims, in the shape
+    `ModelClient.estimate` takes, so the call count and cost are known before a paid run.
+    """
+    return [(RELATION_PROMPT, _relation_input(c, row)) for c in claims for row in later_rows if could_have_seen(c.agent, c.ts, row)]
+
+
 def model_link(
     claim, later_rows: list[dict], call_relation_classifier: Callable[[str, str], dict]
 ) -> list[SpreadEdge]:
-    """LLM-based linker. Only rows the baseline would even consider temporally eligible are
-    sent to the model, to keep the call count down; CUSTOMISE if you want the model to catch
-    relations the n-gram filter misses entirely (then call it on every eligible later row
-    instead of pre-filtering by `baseline_link`'s n-gram overlap).
+    """LLM-based linker. Every later row that `could_have_seen` the claim goes to the model, with
+    no word-overlap pre-filter, because a correction rarely repeats the claim's words. That is
+    one call per (claim, eligible row), so estimate a run with `relation_requests` first.
+    Pass `ModelClient(...).as_caller()` as `call_relation_classifier` to cache the answers.
     """
     edges = []
     for row in later_rows:
         if not could_have_seen(claim.agent, claim.ts, row):
             continue
-        raw = call_relation_classifier(RELATION_PROMPT, f"EARLIER CLAIM: {claim.quote}\n\nLATER MESSAGE: {row['text']}")
+        raw = call_relation_classifier(RELATION_PROMPT, _relation_input(claim, row))
         relation = raw.get("relation", "none")
         if relation in RELATIONS:
             edges.append(SpreadEdge(claim_id=claim.claim_id, later_message_id=row["id"], relation=relation, agent=row["agent"], ts=row["ts"]))
