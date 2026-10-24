@@ -40,9 +40,36 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest",
+    "pytest-cov",
+    "hypothesis",        # property tests for the stats and chunking code
     "ruff",
     "ipykernel",
 ]
 
 [tool.uv]
 package = false
+
+[tool.ruff]
+line-length = 160
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Correctness only: pyflakes, pycodestyle, import order, bugbear. Style rewrites (pyupgrade,
+# simplify) are left out so CI does not fail on code that is merely old-fashioned.
+select = ["E", "F", "W", "I", "B"]
+ignore = [
+    "E501",  # line length is the formatter's job
+    "B905",  # zip(strict=) would change behaviour in eval/validation.py; revisit with the kappa fix
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["check", "eval", "extract", "ingest", "lab", "report", "spread"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true

@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch or PR replaces the run in progress.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Property tests: fixed seed so a red build reproduces from the same commit (tests/conftest.py).
+  HYPOTHESIS_PROFILE: ci
+  # Fail if uv.lock is out of date instead of silently re-resolving.
+  UV_LOCKED: "1"
+
+# Actions are pinned to a commit SHA; the comment is the release it points at. Dependabot
+# (.github/dependabot.yml) proposes updates.
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: true
+      - run: uv sync --only-group dev
+      - run: uv run --no-sync ruff check src tests
+
+  lockfile:
+    name: uv.lock is current
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - run: uv lock --check
+
+  # Offline suite on every supported Python (pyproject: >=3.11,<3.14). src/ imports only the
+  # standard library (enforced by tests/test_pipeline_contract.py), so only the dev group is needed.
+  test-fast:
+    name: Tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      - run: uv sync --only-group dev
+      - name: Run tests with coverage
+        run: uv run --no-sync pytest --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=95
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.python == '3.12'
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 14
+
+  # What a teammate gets from a clean `uv sync`: every pinned dependency installs, imports, and the
+  # same suite passes next to it. Catches a broken pin or a resolver change the fast job cannot see.
+  test-full:
+    name: Tests (py3.12, all dependencies)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - run: uv sync
+      - name: Every declared dependency imports
+        run: |
+          uv run --no-sync python - <<'PY'
+          import importlib
+          mods = ["anthropic", "openai", "google.genai", "tenacity", "httpx", "inspect_ai",
+                  "huggingface_hub", "datasets", "yaml", "dotenv", "pydantic", "numpy", "pandas",
+                  "scipy", "sklearn", "statsmodels", "rapidfuzz", "matplotlib", "jinja2", "tqdm"]
+          for m in mods:
+              importlib.import_module(m)
+          print(f"{len(mods)} dependencies import cleanly")
+          PY
+      - run: uv run --no-sync pytest
+
+  # One stable name for branch protection, so the matrix can change without editing the rules.
+  ci-ok:
+    name: CI passed
+    if: always()
+    needs: [lint, lockfile, test-fast, test-full]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every job to have succeeded
+        run: |
+          echo '${{ toJSON(needs) }}'
+          test "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" = "false"

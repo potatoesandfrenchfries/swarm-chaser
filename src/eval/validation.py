@@ -16,7 +16,6 @@ import re
 from collections import Counter
 from typing import Callable, Optional
 
-
 # --- (a) perturbation test -------------------------------------------------------------
 
 # CUSTOMISE: these patterns are a starting point for "change a number, date or name". Extend

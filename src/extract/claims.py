@@ -12,7 +12,7 @@ variant, freeze both, and record the hashes somewhere committed (a `config.yaml`
 before scaling past a pilot.
 """
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # Adapted from temps_ideas/repos/swarm-question-battery/src/chunking.py (MIT), generalised
 # from "rows have rev_id/episode_id" to the ingest.py row shape ("id"/"episode_id").
