@@ -12,7 +12,7 @@
 "spread.linker:RELATION_PROMPT" = "2690f0ab9061aa0519a85f7969f071250bd5dfa1c9ede71d74ad305c0a5cc35d"
 "eval.decision_curve:SCORE_PROMPT" = "a4268b488ebfab4db0c93edcb7795f844072ad57d0be8a7c85df206c85b18568"
 
-# The two checker models (MVP.md M4, from different vendors). `vendor` selects the transport in
+# The two checker models (MVP.md M4, from different vendors). For API calls, `vendor` selects the transport in
 # adapters/vendors.py; `model` is that vendor's id; prices are USD per million tokens, needed for a spend
 # cap. Read by src/check/run.py, which sends no temperature unless one is set here: the Claude API rejects
 # sampling parameters from 2026-10-21. max_tokens covers the model's thinking as well as its JSON answer.
@@ -25,9 +25,9 @@ max_tokens = 8000
 usd_per_mtok_in = 2.0
 usd_per_mtok_out = 10.0
 
-# [checkers.b]  # open: a second vendor, not Anthropic (checker_specs refuses to run with fewer than two)
-# vendor = "openrouter"
-# model = "<vendor>/<model>"
-# max_tokens = 8000
-# usd_per_mtok_in = 0.0
-# usd_per_mtok_out = 0.0
+# Checker B will label through Codex using GPT 6.1 Sol with High reasoning, rather than an SDK transport.
+# API token prices are omitted: this session does not provide per-token billing rates.
+[checkers.b]
+vendor = "openai"
+model = "gpt-6.1-sol"
+max_tokens = 8000
