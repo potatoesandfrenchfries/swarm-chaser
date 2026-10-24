@@ -202,7 +202,7 @@ def test_parse_claims_fills_defaults_and_records_the_prompt_variant():
     chunk = {"chunk_id": "c0", "episode_id": "e1", "agents": ["alice", "bob"], "text": "alice: the build passed"}
     kept, _ = parse_claims({"claims": [{"quote": "the build passed"}]}, chunk, extractor="e2")
     (c,) = kept
-    assert (c.claim_id, c.agent, c.claim_type, c.extractor, c.checkable) == ("c0-0", "alice", "unknown", "e2", True)
+    assert (c.claim_id, c.agent, c.claim_type, c.extractor, c.checkable) == ("c0-e2-0", "alice", "unknown", "e2", True)
 
 
 def test_parse_claims_tolerates_a_reply_with_no_claims_key():

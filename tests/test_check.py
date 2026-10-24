@@ -233,14 +233,14 @@ def test_checker_specs_need_two_vendors(tmp_path):
     assert specs["a"].temperature is None  # sent to no vendor unless the config sets one
 
 
-def test_the_shipped_config_names_claude_and_codex_as_different_checker_vendors():
+def test_the_shipped_config_names_haiku_and_gemini_flash_as_different_checker_vendors():
     import tomllib
 
     table = tomllib.loads((REPO_ROOT / "config.toml").read_text(encoding="utf-8"))["checkers"]
     assert list(table) == ["a", "b"]
     specs = checker_specs()
-    assert specs["a"].label == "anthropic/claude-sonnet-5-5"
-    assert specs["b"].label == "openai/gpt-6.1-sol"
+    assert specs["a"].label == "anthropic/claude-haiku-5-5"
+    assert specs["b"].label == "gemini/gemini-3.8-flash"
     assert specs["b"].temperature is None
 
 
