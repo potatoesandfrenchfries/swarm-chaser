@@ -102,7 +102,8 @@ are in [scope.md section 4](./scope.md#4-stack).
 
 Templates for each stage are in `src/`, with `CUSTOMISE` comments where a placeholder needs
 real data or a reviewed scenario. They are scaffolding, not finished stages: `pytest -q` passes
-(55 tests, offline), but nothing has run against a model client, Docker or real village data.
+(192 tests offline, plus 16 known defects pinned as `xfail`; see [tests/README.md](./tests/README.md)), and
+CI runs them on every push and pull request, but nothing has run against a model client, Docker or real village data.
 
 | Module | Covers | State |
 | --- | --- | --- |

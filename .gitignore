@@ -32,3 +32,11 @@ temps_ideas/repos/
 
 # hf-mount mountpoint
 local/
+
+# test and lint output
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
