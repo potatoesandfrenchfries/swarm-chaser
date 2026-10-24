@@ -526,7 +526,7 @@ def test_page_escapes_agent_text_everywhere_it_can_appear():
 def test_sections_render_with_nothing_to_show():
     assert "5. Decision curve" in section_5_decision_curve([])
     out = section_6_sandbox({"without_intervention": {"n": 0, "rate": float("nan")}, "with_intervention": {}}, {"n": 0, "auc": None})
-    assert "n/a" in out and "None" in out
+    assert "n/a" in out and "None" not in out  # a missing metric reads "n/a", not Python's None
 
 
 def test_page_states_that_labels_are_llm_made_and_that_model_and_time_are_confounded():
