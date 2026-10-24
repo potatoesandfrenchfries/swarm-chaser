@@ -13,27 +13,43 @@
 "eval.decision_curve:SCORE_PROMPT" = "a4268b488ebfab4db0c93edcb7795f844072ad57d0be8a7c85df206c85b18568"
 "check.checker:CHECKER_PROMPT" = "5e81a1a009e43b971a6cf02c56034ab78fbaa3e47af95a17df56b87137769820"
 
-# The two checker models (MVP.md M4, from different vendors). For API calls, `vendor` selects the transport in
-# adapters/vendors.py; `model` is that vendor's id; prices are USD per million tokens, needed for a spend
-# cap. Read by src/check/run.py, which sends no temperature unless one is set here: the Claude API rejects
-# sampling parameters from 2026-10-21. max_tokens covers the model's thinking as well as its JSON answer.
-# A cache entry is keyed on these settings, so changing one reruns that vendor's calls.
+# One budget for every paid call (issue #19): three pounds. src/llm/budget.py turns it into dollars and
+# subtracts what the cache says is already spent. usd_per_gbp is an ASSUMED rate, kept a little low so the
+# dollar cap errs on the side of less; check it against today's rate before relying on the margin.
+[spend]
+cap_gbp = 3.0
+usd_per_gbp = 1.25
+
+# The extraction model (MVP.md M3) and the two checker models (M4, from different vendors). For API calls,
+# `vendor` selects the transport in adapters/vendors.py; `model` is that vendor's id; prices are USD per
+# million tokens, needed for the spend cap. Read by src/extract/run.py and src/check/run.py, which send no
+# temperature unless one is set here: Claude Haiku 5.5 rejects non-default sampling values, and the Claude API
+# rejects sampling parameters from 2026-10-21. max_tokens covers the model's thinking as well as its JSON
+# answer, because both models think by default. A cache entry is keyed on these settings, so changing one
+# reruns that model's calls.
+#
+# Prices, checked 2026-10-24: Claude Haiku 5.5 is $0.10 in / $0.50 out for prompts up to 100K tokens ($0.50 /
+# $2.50 above that; our windows and chunks are far smaller). Gemini 3.8 Flash is $0.75 in / $3.75 out through
+# 2026-12-31 and $1.50 / $7.50 from 2027-01-01, with thinking counted as output (ai.google.dev/gemini-api/
+# docs/pricing). `gemini-2.5-flash` is in the model list but returns 404 "no longer available to new users".
+
+[extractor]
+vendor = "anthropic"
+model = "claude-haiku-5-5"
+max_tokens = 16000  # 8000 cut 3 of 10 prompt-e2 replies off mid-JSON: thinking took most of it (mean 5.3k output tokens)
+usd_per_mtok_in = 0.10
+usd_per_mtok_out = 0.50
 
 [checkers.a]
 vendor = "anthropic"
-model = "claude-sonnet-5-5"
+model = "claude-haiku-5-5"
 max_tokens = 8000
-usd_per_mtok_in = 2.0
-usd_per_mtok_out = 10.0
+usd_per_mtok_in = 0.10
+usd_per_mtok_out = 0.50
 
-# Checker B names GPT 6.1 Sol with High reasoning. There is no live demo planned for it, so its key may be a
-# placeholder and the model id is unchecked. Two things here are not what they look like:
-#   - the prices below are PLACEHOLDERS, set high on purpose, so that a spend cap can be computed at all
-#     (ModelClient refuses a cap without prices). They are not OpenAI's rates; replace them before a paid run.
-#   - the reasoning level (high) is not a field of ModelSpec, so it is not sent and not in the cache key.
 [checkers.b]
-vendor = "openai"
-model = "gpt-6.1-sol"
-max_tokens = 8000
-usd_per_mtok_in = 5.0
-usd_per_mtok_out = 15.0
+vendor = "gemini"
+model = "gemini-3.8-flash"
+max_tokens = 16000
+usd_per_mtok_in = 0.75
+usd_per_mtok_out = 3.75

@@ -187,7 +187,7 @@ def parse_claims(llm_json: dict, chunk: dict, extractor: str = "e1") -> tuple[li
             agent, model, ts, source, row_id = row["agent"], row["model"], row["ts"], row["source"], row["id"]
         kept.append(
             Claim(
-                claim_id=f"{chunk['chunk_id']}-{i}",
+                claim_id=f"{chunk['chunk_id']}-{extractor}-{i}",  # the extractor is in the id: e1 and e2 read the same chunks
                 episode=chunk["episode_id"],
                 agent=agent,
                 model=model,
