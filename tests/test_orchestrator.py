@@ -22,6 +22,7 @@ def tasks(n=8, **extra):
 def run(tmp_path, container=None, **kwargs):
     container = container or FakeContainer()
     kwargs.setdefault("step", 2)
+    kwargs.setdefault("layer", 18)
     report = orchestrator.orchestrate(kwargs.pop("tasks", tasks()), tmp_path, docker=container, spawn=container.spawn, **kwargs)
     return report, container
 
@@ -342,7 +343,7 @@ def test_the_whole_experiment_runs_and_both_models_are_reported(tmp_path):
     report, container = run(tmp_path)
     assert report["rows"]["n"] == 8 and report["rows"]["positive_rate"] == 0.5
     assert report["rows"]["run_ids"] == [f"run{i}" for i in range(8)] and report["rows"]["influenced"] == []
-    assert {"accuracy", "auc", "shuffled_accuracy", "brier"} <= set(report["observer"])
+    assert {"accuracy_pooled", "auc_pooled", "auc_shuffled", "brier"} <= set(report["observer"])
     assert report["whitebox"]["accuracy"] == 0.7
     assert json.loads((tmp_path / "report.json").read_text()) == report
     assert report["config"]["features"] == list(blackbox.FEATURES)
@@ -352,7 +353,7 @@ def test_the_agent_container_is_live_and_gets_the_gpu_and_scoring_gets_neither(t
     _, container = run(tmp_path, build=True)
     build, agents, score = container.commands
     assert build[0] == "build"
-    assert "--gpus" in agents and "-i" in agents and "--network" not in agents and agents[-5:] == ["run", "--tasks", "/work/tasks.json", "--out", "/work"]
+    assert "--gpus" in agents and "-i" in agents and "--network" not in agents and agents[-7:] == ["run", "--tasks", "/work/tasks.json", "--out", "/work", "--model", orchestrator.DEFAULT_MODEL]
     assert "--gpus" not in score and "-i" not in score and score[score.index("--network") + 1] == "none" and score[-5] == "evaluate"
 
 
@@ -392,7 +393,7 @@ def test_both_models_get_the_same_rows_labels_and_folds(tmp_path):
 
     def whitebox(plan, work):
         seen["plan"] = plan
-        return {"accuracy": 0.5, "accuracy_std": 0.0, "auc": 0.5, "auc_std": 0.0, "shuffled_accuracy": 0.5}
+        return {"accuracy": 0.5, "auc": 0.5, "auc_shuffled": 0.5, "n": 8, "folds": 3}
 
     report, _ = run(tmp_path, FakeContainer(evaluate=whitebox), cv=3, seed=7)
     plan = seen["plan"]
@@ -404,7 +405,7 @@ def test_both_models_get_the_same_rows_labels_and_folds(tmp_path):
 
 def test_the_plan_reads_every_run_at_the_step_asked_for(tmp_path):
     seen = {}
-    zeros = {"accuracy": 0, "accuracy_std": 0, "auc": 0, "auc_std": 0, "shuffled_accuracy": 0}
+    zeros = {"accuracy": 0, "auc": 0, "auc_shuffled": 0, "n": 0, "folds": 0}
     run(tmp_path, FakeContainer(steps={"run0": 1, "run1": 5}, evaluate=lambda plan, work: seen.update(plan=plan) or zeros), step=3)
     steps = {r["run_id"]: r["step"] for r in seen["plan"]["rows"]}
     assert steps["run0"] == 1 and steps["run1"] == 3 and steps["run2"] == 3
@@ -476,9 +477,9 @@ def test_the_command_line_runs_the_experiment_and_prints_both_columns(tmp_path, 
     monkeypatch.setattr(orchestrator, "run_docker", fake)
     monkeypatch.setattr(orchestrator, "DockerSession", fake.spawn)
     path = write_tasks(tmp_path, [{"run_id": f"r{i}", "text": "t", "label": i % 2, "influencer_messages": ["psst"]} for i in range(6)])
-    assert orchestrator.main([str(path), "--work", str(tmp_path / "w"), "--step", "2", "--build", "--offline", "--no-gpu", "--cv", "2"]) == 0
+    assert orchestrator.main([str(path), "--work", str(tmp_path / "w"), "--step", "2", "--layer", "18", "--build", "--offline", "--no-gpu", "--cv", "2"]) == 0
     out = capsys.readouterr().out
-    assert "observer" in out and "whitebox" in out and "6 runs (6 with an influencer)" in out and "shuffled_accuracy" in out
+    assert "observer" in out and "whitebox" in out and "6 runs (6 with an influencer)" in out and "shuffled labels" in out and "layer 18" in out
     build, agents, score = fake.commands
     assert "--gpus" not in agents and agents[agents.index("--network") + 1] == "none"
     assert fake.replies[0] == "psst"
@@ -486,7 +487,7 @@ def test_the_command_line_runs_the_experiment_and_prints_both_columns(tmp_path, 
 
 def test_the_command_line_reports_a_problem_instead_of_a_traceback(tmp_path, capsys):
     path = write_tasks(tmp_path, [])
-    assert orchestrator.main([str(path), "--work", str(tmp_path), "--step", "1"]) == 1
+    assert orchestrator.main([str(path), "--work", str(tmp_path), "--step", "1", "--layer", "0"]) == 1
     assert "error:" in capsys.readouterr().err
 
 
@@ -495,3 +496,43 @@ def test_the_report_says_what_was_left_out(tmp_path):
     report, _ = run(tmp_path, container, step=2)
     text = orchestrator.format_report(report)
     assert "run0" in text and "left out" in text and "earlier step" in text and "base rate" in text
+
+
+# --- the layer, the model and the comparison -------------------------------------------------------------
+
+
+def test_the_plan_names_the_layer_and_the_report_records_it_and_the_model(tmp_path):
+    seen = {}
+    report, container = run(tmp_path, FakeContainer(evaluate=lambda plan, work: seen.update(plan=plan) or {"accuracy": 1, "auc": 1, "auc_shuffled": 0.5, "n": 8, "folds": 4}), layer=21, model="some/model")
+    assert seen["plan"]["layer"] == 21 and report["config"]["layer"] == 21 and report["config"]["model"] == "some/model"
+    agents = container.commands[0]
+    assert agents[-2:] == ["--model", "some/model"]
+
+
+def test_the_default_model_is_the_one_the_container_defaults_to():
+    import sys
+
+    sys.path.insert(0, str(orchestrator.WHITEBOX_DIR))
+    import runner
+
+    assert orchestrator.DEFAULT_MODEL == runner.DEFAULT_MODEL
+
+
+def test_a_negative_layer_is_refused(tmp_path):
+    with pytest.raises(ValueError, match="layer"):
+        run(tmp_path, layer=-1)
+
+
+def test_the_command_line_will_not_guess_the_layer(tmp_path, capsys):
+    path = write_tasks(tmp_path, [{"run_id": "a", "text": "t", "label": 0}])
+    with pytest.raises(SystemExit):
+        orchestrator.main([str(path), "--work", str(tmp_path), "--step", "1"])
+    assert "--layer" in capsys.readouterr().err
+
+
+def test_the_two_columns_are_the_same_quantity_over_the_same_pooled_predictions(tmp_path):
+    report, _ = run(tmp_path)
+    text = orchestrator.format_report(report)
+    for label, observer_key, whitebox_key in orchestrator.COMPARED:
+        assert label in text and observer_key in report["observer"] and whitebox_key in report["whitebox"]
+    assert report["observer"]["n"] == report["whitebox"]["n"] == 8 and report["observer"]["folds"] == report["whitebox"]["folds"]

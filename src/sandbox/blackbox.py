@@ -219,9 +219,14 @@ def evaluate(X, y, cv: int = 5, seed: int = 0, folds: Optional[list[list[int]]] 
     accuracies, aucs, pooled = _cross_validate(X, y, folds)
     shuffled = list(y)
     random.Random(seed + 1).shuffle(shuffled)
-    shuffled_accuracies, _, _ = _cross_validate(X, shuffled, folds)
+    shuffled_accuracies, _, shuffled_pooled = _cross_validate(X, shuffled, folds)
     base = base_rate_predictor(pooled)
     return {
+        "accuracy_pooled": sum((p.probability >= 0.5) == p.outcome for p in pooled) / len(pooled),
+        "auc_pooled": auc(pooled),
+        "auc_shuffled": auc(shuffled_pooled),
+        "n": len(y),
+        "folds": len(folds),
         "accuracy": mean(accuracies),
         "accuracy_std": pstdev(accuracies),
         "auc": mean(a for a in aucs if a is not None),

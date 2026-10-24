@@ -129,11 +129,78 @@ def test_the_rounds_are_capped():
     assert len(requests) == 2 and len(captured) == 2
 
 
-def test_a_reply_that_is_not_json_ends_that_agents_turns_and_is_recorded_as_text():
-    model = Script({"alice": ["I would rather not say", act()], "bob": [act(), DONE]})
+def test_a_reply_that_stays_not_json_after_the_retries_ends_that_agents_turns_and_is_recorded_as_text():
+    model = Script({"alice": ["I would rather not say", "No.", "Still no.", act()], "bob": [act(), DONE]})
     captured, events, _ = play(model)
-    assert types(events, "alice") == ["probe", "agent_text"] and len(captured) == 1
-    assert [e["text"] for e in events if e["type"] == "agent_text"] == ["I would rather not say"]
+    assert types(events, "alice") == ["probe", "format_error", "format_error", "agent_text"] and len(captured) == 1
+    assert [e["text"] for e in events if e["type"] == "agent_text"] == ["Still no."]
+    assert model.replies["alice"] == [act()]  # the fourth reply was never asked for
+
+
+def test_a_reply_that_is_not_json_is_sent_back_and_the_agent_carries_on_if_it_fixes_it():
+    model = Script({"alice": ['```json\n{"tool": "run_command(run_command(', act(), DONE], "bob": [DONE]})
+    captured, events, _ = play(model)
+    assert types(events, "alice")[:5] == ["probe", "format_error", "reasoning", "tool_call", "probe"] and len(captured) == 2  # the retry is not a second decision point
+    retry = model.shown("alice", 1)
+    assert retry[-2]["role"] == "assistant" and retry[-1]["content"] == environment.FORMAT_NUDGE
+    assert [e["text"] for e in events if e["type"] == "format_error"] == ['```json\n{"tool": "run_command(run_command(']
+
+
+def test_a_tool_name_with_junk_after_it_is_read_as_its_first_word():
+    assert environment.tool_name("run_command(run_command(send_email(") == "run_command"
+    assert environment.tool_name("  list_files ") == "list_files" and environment.tool_name("") is None
+    assert environment.tool_name(["x"]) is None and environment.tool_name("(nothing)") is None
+    model = Script({"alice": [json.dumps({"tool": "list_files(/p)", "args": {"directory": "/p"}}), DONE], "bob": [DONE]})
+    _, events, _ = play(model)
+    assert [e["tool"] for e in events if e["type"] == "tool_call"] == ["list_files"]
+
+
+def test_every_tool_result_ends_with_a_hint_to_finish():
+    model = Script({"alice": [act(), DONE], "bob": [DONE]})
+    play(model)
+    result = model.shown("alice")[-1]["content"]
+    assert result.startswith("Tool result: [fake]") and result.endswith(environment.FINISH_HINT)
+
+
+def test_an_agent_that_makes_the_same_call_over_and_over_is_stopped():
+    model = Script({"alice": [act()] * 6, "bob": [DONE]})
+    captured, events, _ = play(model, episode(rounds=6))
+    assert types(events, "alice").count("tool_call") == environment.MAX_REPEATS
+    assert [e["tool"] for e in events if e["type"] == "finished" and e["agent"] == "alice"] == ["repeat"]
+    assert len(captured) == environment.MAX_REPEATS
+
+
+def test_a_different_call_in_between_restarts_the_count():
+    other = act("read_file", {"path": "/p/a"})
+    model = Script({"alice": [act(), act(), other, act(), act(), DONE], "bob": [DONE]})
+    captured, events, _ = play(model, episode(rounds=6))
+    assert "repeat" not in [e.get("tool") for e in events] and len(captured) == 6
+
+
+def test_a_run_becomes_one_record_per_step_for_the_dataset():
+    one_agent = {"run_id": "r", "text": "t", "rounds": 4}
+    model = Script({"agent": [act(), act("say", {"text": "hello"}), act("format_disk"), DONE]})
+    events = []
+    vectors = environment.run_episode(one_agent, model, lambda request: None, events.append)
+    records = environment.step_records(events, vectors, "r", 1)
+    assert [r["tool"] for r in records] == ["list_files", "say", "format_disk"] and [r["step"] for r in records] == [0, 1, 2]
+    assert all(r["label"] == 1 and r["run_id"] == "r" for r in records) and records[0]["reasoning"] == "why"
+    assert [r["vec"] for r in records] == vectors
+
+
+def test_a_step_with_no_usable_action_is_a_none_record():
+    model = Script({"agent": ["blah", "blah", "blah"]})
+    events = []
+    vectors = environment.run_episode({"run_id": "r", "text": "t", "rounds": 2}, model, lambda request: None, events.append)
+    assert [r["tool"] for r in environment.step_records(events, vectors, "r", 0)] == ["none"]
+
+
+def test_only_the_focus_agents_steps_become_records():
+    model = Script({"alice": [act(), DONE], "bob": [act("send_email", {"to": "x"}), DONE]})
+    events = []
+    vectors = environment.run_episode(episode(), model, lambda request: None, events.append)
+    records = environment.step_records(events, vectors, "r", 0, focus="alice")
+    assert [r["tool"] for r in records] == ["list_files", "done"]
 
 
 def test_an_unknown_tool_or_a_tool_that_is_not_a_string_ends_the_agent():
@@ -142,10 +209,20 @@ def test_an_unknown_tool_or_a_tool_that_is_not_a_string_ends_the_agent():
     assert types(events, "alice")[-1] == "finished" and types(events, "bob")[-1] == "finished"
 
 
-def test_wrong_arguments_are_a_result_the_agent_sees_not_a_crash():
+def test_the_fake_tools_shrug_off_stray_arguments():
     model = Script({"alice": [act("read_file", {"wrong": 1}), DONE], "bob": [DONE]})
     _, events, _ = play(model)
     assert "tool_call" in types(events, "alice")
+    assert model.shown("alice")[-1]["content"].startswith("Tool result: [fake] contents of <unspecified>")
+
+
+def test_a_tool_that_rejects_its_arguments_is_a_result_the_agent_sees_not_a_crash(monkeypatch):
+    def strict(path):
+        return f"[fake] read {path}"
+
+    monkeypatch.setitem(environment.TOOLS, "read_file", strict)
+    model = Script({"alice": [act("read_file", {"wrong": 1}), DONE], "bob": [DONE]})
+    play(model)
     assert model.shown("alice")[-1]["content"].startswith("Tool result: [error] bad arguments for read_file")
 
 
@@ -171,4 +248,13 @@ def test_the_emitter_appends_json_lines_with_a_time(tmp_path):
 
 def test_an_action_is_found_inside_chatter_and_garbage_is_not_an_action():
     assert environment.parse_action('Sure! {"tool": "done", "args": {}} Hope that helps.') == {"tool": "done", "args": {}}
+    assert environment.parse_action('{"tool": "done"} and then {"tool": "delete_file"}') == {"tool": "done"}  # the first object, not both
+    assert environment.parse_action('{"reasoning": "a {nested} thing", "tool": "done"}')["tool"] == "done"
     assert environment.parse_action("no braces") is None and environment.parse_action("{not json}") is None
+
+
+def test_the_step_that_hits_the_repeat_limit_keeps_the_tool_it_called():
+    model = Script({"agent": [act()] * 5})
+    events = []
+    vectors = environment.run_episode({"run_id": "r", "text": "t", "rounds": 5}, model, lambda request: None, events.append)
+    assert [r["tool"] for r in environment.step_records(events, vectors, "r", 0)] == ["list_files"] * environment.MAX_REPEATS

@@ -1,6 +1,6 @@
 """Train the white-box regression model from the generated CSV dataset.
 
-    python src/whitebox/whitebox_train.py Qwen/Qwen2.5-3B-Instruct
+    python whitebox/whitebox_train.py Qwen/Qwen2.5-3B-Instruct
 
 Loads data/activations_<model>.csv, sweeps every layer present with grouped
 cross-validation (whole trajectories held out together, so steps from one run
@@ -8,20 +8,20 @@ never straddle the split), picks the best-separating layer, trains the final
 classifier on it, and saves it to data/whitebox_<model>.joblib with a metrics
 summary. One trained model per agent, exactly as intended.
 """
-import os
-import sys
-import re
 import json
+import os
+import re
+import sys
 
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from classify import evaluate, train_final  # noqa: E402
 
-DATA_DIR = os.path.join(HERE, "..", "data")
+DATA_DIR = os.environ.get("WHITEBOX_DATA", os.path.join(HERE, "..", "data"))  # the container sets it to /work/data
 
 
 def slug(model_name):

@@ -1,4 +1,6 @@
 # torch comes from the base image. transformers>=4.56 for the `dtype=` argument of from_pretrained.
 transformers>=4.56
 numpy
+pandas
 scikit-learn
+joblib

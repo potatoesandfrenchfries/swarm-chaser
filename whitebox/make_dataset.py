@@ -5,8 +5,8 @@ open-weight model, captures the per-step activations, and writes ONE labelled
 CSV to data/activations_<model>.csv.
 
 Run once per model:
-    python src/whitebox/make_dataset.py Qwen/Qwen2.5-3B-Instruct
-    python src/whitebox/make_dataset.py Qwen/Qwen2.5-3B-Instruct 9,18,27   # only some layers
+    python whitebox/make_dataset.py Qwen/Qwen2.5-3B-Instruct
+    python whitebox/make_dataset.py Qwen/Qwen2.5-3B-Instruct 9,18,27   # only some layers
 
 You do NOT run this again unless you change the model, the capture, or the task
 set. The committed CSV is what training (whitebox_train.py) loads.
@@ -24,19 +24,18 @@ x 2048 dims, which makes a large CSV. If it's too big to commit, regenerate
 with a short layer list (e.g. "9,18,27") -- the training script sweeps whatever
 layers are present.
 """
-import os
-import sys
-import re
 import csv
+import os
+import re
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "sandbox"))
 sys.path.insert(0, HERE)
 
 from agent_loop import AgentRunner  # noqa: E402
 from tasks import TASK_PAIRS  # noqa: E402
 
-DATA_DIR = os.path.join(HERE, "..", "data")
+DATA_DIR = os.environ.get("WHITEBOX_DATA", os.path.join(HERE, "..", "data"))  # the container sets it to /work/data
 
 
 def slug(model_name):
@@ -72,13 +71,12 @@ def main(model_name, layers):
                       f"(tools: {', '.join(r['tool'] for r in recs)})")
 
     size_mb = os.path.getsize(out) / 1e6
-    n_mal = sum(1 for p in TASK_PAIRS)  # pairs, informational
     print(f"\nWrote {out}  ({size_mb:.1f} MB)")
     print(f"  {n_steps} agent steps x {len(sel)} layers = {n_steps * len(sel)} rows | "
           f"{len(TASK_PAIRS)} task pairs")
     if size_mb > 50:
         print("  WARNING: >50 MB. GitHub will complain. Regenerate with a short layer "
-              'list, e.g.  python src/whitebox/make_dataset.py <model> 9,18,27')
+              'list, e.g.  python whitebox/make_dataset.py <model> 9,18,27')
 
 
 def parse_layers(arg):

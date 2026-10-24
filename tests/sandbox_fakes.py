@@ -122,5 +122,5 @@ class FakeContainer:
         if command[0] == "run" and self.score:
             work = self.work_dir(command)
             plan = json.loads((work / "plan.json").read_text())
-            result = self.evaluate(plan, work) if self.evaluate else {"accuracy": 0.7, "accuracy_std": 0.1, "auc": 0.8, "auc_std": 0.05, "shuffled_accuracy": 0.5}
+            result = self.evaluate(plan, work) if self.evaluate else {"accuracy": 0.7, "auc": 0.8, "auc_shuffled": 0.5, "n": len(plan["rows"]), "folds": len(plan["folds"]), "layer": plan["layer"]}
             (work / "whitebox_result.json").write_text(json.dumps(result))

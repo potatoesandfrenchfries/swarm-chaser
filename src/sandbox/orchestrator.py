@@ -19,8 +19,10 @@
 Two models are scored on the same rows and folds. The whitebox probe is on one agent, the `focus` agent: its
 hidden state before each of its steps, read inside the container. The observer (src/sandbox/blackbox.py) is
 a baseline that sees only what an outside monitor would: the focus agent's messages, the board and the influencer,
-up to the same moment. A row is one run at one `--step`, the focus agent's k-th step. Pick `--step` from the pilot
-before the main runs (MVP.md M9), not after seeing the scores.
+up to the same moment. A row is one run at one `--step`, the focus agent's k-th step, and the probe reads one
+`--layer` of the hidden state (the container captures all of them, so the offline `train` sweep can choose). Pick
+both from the pilot before the main runs (MVP.md M9), not after seeing the scores: choosing the layer on the
+same runs it is then scored on flatters the probe.
 
 The outside model (the influencer) lives in this process, so its API key never enters the container, and the
 container can run with no network at all (`--offline`). Here it is a function `(task, request) -> message | None`;
@@ -47,6 +49,7 @@ from lab.arms import LabRun
 from sandbox import blackbox
 
 IMAGE = "claim-spread-whitebox"
+DEFAULT_MODEL = "Qwen/Qwen2.5-3B-Instruct"  # whitebox/runner.py DEFAULT_MODEL
 CACHE_VOLUME = "claim-spread-hf-cache"  # model weights, so they download once
 WHITEBOX_DIR = Path(__file__).resolve().parents[2] / "whitebox"  # the build context: nothing else is visible to the image
 CONTAINER_WORK = "/work"
@@ -364,6 +367,8 @@ def orchestrate(
     work_dir: Path,
     step: int,
     *,
+    layer: int,
+    model: str = DEFAULT_MODEL,
     cv: int = 5,
     seed: int = 0,
     image: str = IMAGE,
@@ -382,6 +387,8 @@ def orchestrate(
     """
     if step < 1:
         raise ValueError(f"step must be at least 1, got {step}")
+    if layer < 0:
+        raise ValueError(f"layer must not be negative, got {layer}")
     docker, spawn = docker or run_docker, spawn or DockerSession
     work_dir = Path(work_dir).resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -390,7 +397,7 @@ def orchestrate(
         docker(build_command(image))
     if not skip_run:
         (work_dir / "tasks.json").write_text(json.dumps([t.for_container() for t in tasks], indent=1))
-        session = spawn(container_command(image, work_dir, ["run", "--tasks", f"{CONTAINER_WORK}/tasks.json", "--out", CONTAINER_WORK], gpus=gpus, offline=offline, interactive=True))
+        session = spawn(container_command(image, work_dir, ["run", "--tasks", f"{CONTAINER_WORK}/tasks.json", "--out", CONTAINER_WORK, "--model", model], gpus=gpus, offline=offline, interactive=True))
         serve(session, tasks, influencer)
     events_path = work_dir / "events.jsonl"
     if not events_path.is_file():
@@ -404,7 +411,7 @@ def orchestrate(
 
     blackbox_result = blackbox.evaluate(staged["X"], staged["y"], folds=folds, seed=seed)
 
-    plan = {"rows": staged["rows"], "folds": folds, "seed": seed}
+    plan = {"rows": staged["rows"], "folds": folds, "seed": seed, "layer": layer}
     (work_dir / "plan.json").write_text(json.dumps(plan, indent=1))
     result_path = work_dir / "whitebox_result.json"
     result_path.unlink(missing_ok=True)
@@ -416,7 +423,7 @@ def orchestrate(
     y = staged["y"]
     by_id = {t.run_id: t for t in tasks}
     report = {
-        "config": {"step": step, "folds": len(folds), "seed": seed, "image": image, "features": list(blackbox.FEATURES)},
+        "config": {"step": step, "layer": layer, "model": model, "folds": len(folds), "seed": seed, "image": image, "features": list(blackbox.FEATURES)},
         "rows": {
             "n": len(y),
             "positive_rate": sum(y) / len(y),
@@ -436,18 +443,28 @@ def orchestrate(
     return report
 
 
+# (label, the observer's key, the whitebox probe's key): the same quantity under each model's own name. Both are
+# taken over all the held-out predictions pooled, so the two columns mean the same thing.
+COMPARED = (
+    ("accuracy", "accuracy_pooled", "accuracy"),
+    ("auc", "auc_pooled", "auc"),
+    ("auc, shuffled labels", "auc_shuffled", "auc_shuffled"),
+)
+
+
 def format_report(report: dict) -> str:
     """The two models side by side, on the same rows and folds."""
-    rows, config = report["rows"], report["config"]
+    rows, config, observer, whitebox = report["rows"], report["config"], report["observer"], report["whitebox"]
     left_out = {k: rows[k] for k in ("no_steps", "no_activations", "unlabelled", "container_failures") if rows[k]}
     lines = [
-        f"{rows['n']} runs ({len(rows['influenced'])} with an influencer), {rows['positive_rate']:.0%} positive, {config['folds']} shared folds, step {config['step']}",
-        f"{'':20}{'observer':>10}{'whitebox':>10}",
+        f"{rows['n']} runs ({len(rows['influenced'])} with an influencer), {rows['positive_rate']:.0%} positive, "
+        f"{config['folds']} shared folds, step {config['step']}, layer {config['layer']}",
+        f"{'':24}{'observer':>10}{'whitebox':>10}",
     ]
-    for metric in ("accuracy", "accuracy_std", "auc", "auc_std", "shuffled_accuracy"):
-        lines.append(f"{metric:20}{report['observer'][metric]:10.3f}{report['whitebox'].get(metric, float('nan')):10.3f}")
-    lines.append("(shuffled_accuracy should sit near the base rate; higher means the features leak the label)")
-    lines.append(f"observer brier {report['observer']['brier']:.3f} against {report['observer']['base_rate_brier']:.3f} for the base rate")
+    for label, observer_key, whitebox_key in COMPARED:
+        lines.append(f"{label:24}{observer[observer_key]:10.3f}{whitebox[whitebox_key]:10.3f}")
+    lines.append("(shuffled-label AUC should sit near 0.5; higher means the features leak the label)")
+    lines.append(f"observer brier {observer['brier']:.3f} against {observer['base_rate_brier']:.3f} for the base rate")
     if left_out:
         lines.append(f"left out: {json.dumps(left_out, sort_keys=True)}")
     if rows["short_runs"]:
@@ -460,6 +477,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("tasks", type=Path, help='JSON list of {"run_id", "text", "label", "agents"?, "focus"?, "rounds"?, "influencer_messages"?, "claim"?}')
     parser.add_argument("--work", type=Path, required=True, help="experiment folder (git-ignored, e.g. local/m9); mounted into the container")
     parser.add_argument("--step", type=int, required=True, help="the focus agent's step both models read at; choose it from the pilot")
+    parser.add_argument("--layer", type=int, required=True, help="the hidden-state layer the probe reads; choose it from the pilot (or the offline `train` sweep), not from these runs")
+    parser.add_argument("--model", default=DEFAULT_MODEL, help="the open-weight model the agents run on")
     parser.add_argument("--cv", type=int, default=5, help="folds, capped at the size of the smaller class")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--image", default=IMAGE)
@@ -471,7 +490,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     try:
         report = orchestrate(
-            load_tasks(args.tasks), args.work, args.step, cv=args.cv, seed=args.seed, image=args.image, gpus=not args.no_gpu, offline=args.offline, build=args.build, skip_run=args.skip_run
+            load_tasks(args.tasks), args.work, args.step, layer=args.layer, model=args.model, cv=args.cv, seed=args.seed, image=args.image, gpus=not args.no_gpu, offline=args.offline, build=args.build, skip_run=args.skip_run
         )
     except (ContainerError, ValueError, OSError) as problem:
         print(f"error: {problem}", file=sys.stderr)

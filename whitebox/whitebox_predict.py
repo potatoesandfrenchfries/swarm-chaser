@@ -13,10 +13,10 @@ deployment running several open-weight agents loads one monitor per agent.
 import os
 import re
 
-import numpy as np
 import joblib
+import numpy as np
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+DATA_DIR = os.environ.get("WHITEBOX_DATA", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data"))  # the container sets it to /work/data
 
 
 def slug(model_name):

@@ -17,7 +17,9 @@ COPY *.py ./
 
 # Model weights are cached on a volume (/cache) so they are downloaded once, not once per run.
 ENV HF_HOME=/cache/huggingface \
+    WHITEBOX_DATA=/work/data \
     PYTHONUNBUFFERED=1
 
 # The host mounts the experiment folder at /work: tasks.json and plan.json in, events and results out.
+# Commands: run, evaluate (driven by src/sandbox/orchestrator.py), and the offline pipeline: dataset, train, probe.
 ENTRYPOINT ["python", "/app/runner.py"]

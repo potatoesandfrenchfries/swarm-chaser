@@ -1,7 +1,7 @@
 """Quick probe: run a few benign/malicious pairs side by side and show whether
 the agent complied with the harmful instruction.
 
-    python src/whitebox/probe.py Qwen/Qwen2.5-3B-Instruct 3
+    python whitebox/probe.py Qwen/Qwen2.5-3B-Instruct 3
 
 The second arg is how many task pairs to try (default 3). This does NOT save a
 dataset -- it's just to confirm the malicious tasks actually elicit malicious
@@ -11,7 +11,6 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "sandbox"))
 sys.path.insert(0, HERE)
 
 from agent_loop import AgentRunner  # noqa: E402

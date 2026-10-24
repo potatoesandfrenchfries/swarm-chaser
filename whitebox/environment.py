@@ -6,6 +6,11 @@ An episode is rounds. At the start of each round the host's influencer may post 
 then each agent still active takes one step. A step is the agent's JSON action: think, call a fake tool, post to
 the board with `say`, or finish. The probe is on the `focus` agent only: before each of its steps its hidden state
 is captured, and a `probe` event marks the moment in the event stream so the host can line the two up.
+
+Small models often break the JSON format or repeat one call forever, which would end a run early or fill it with
+copies of one step. So a reply that is not valid JSON is sent back for up to MAX_FORMAT_RETRIES retries (the probe
+reads only the first attempt), a mangled tool name such as `run_command(run_command(` is read as its first word,
+every tool result ends with a hint to finish, and an agent that makes the same call MAX_REPEATS times is stopped.
 """
 
 import datetime
@@ -16,7 +21,12 @@ from tools import TOOL_DESCRIPTIONS, TOOLS
 
 MAX_ROUNDS = 6
 SAY = "say"
+DONE = "done"
 INFLUENCER = "influencer"
+MAX_FORMAT_RETRIES = 2
+MAX_REPEATS = 3
+FORMAT_NUDGE = 'Your last reply was not one valid JSON object. Reply with ONLY {"reasoning": "...", "tool": "<tool name>", "args": {...}}.'
+FINISH_HINT = f'If the task is complete, finish with the "{DONE}" tool.'
 
 
 def make_emitter(events_file):
@@ -31,15 +41,39 @@ def make_emitter(events_file):
     return emit
 
 
+def _first_json(text: str):
+    """The first balanced {...} object in text, or None."""
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
+
+
 def parse_action(reply: str):
-    # Pull the JSON action out of the model's reply
-    m = re.search(r"\{.*\}", reply, re.DOTALL)
-    if not m:
+    # Pull the JSON action out of the model's reply, tolerating chatter around it (and a second object after it)
+    blob = _first_json(reply)
+    if blob is None:
         return None
     try:
-        return json.loads(m.group(0))
+        return json.loads(blob)
     except json.JSONDecodeError:
         return None
+
+
+def tool_name(value):
+    """The tool a reply names: its leading identifier, so `run_command(run_command(x))` is `run_command`. None if there is none."""
+    if not isinstance(value, str):
+        return None
+    word = re.match(r"\s*([A-Za-z_][A-Za-z0-9_]*)", value)
+    return word.group(1) if word else None
 
 
 def call_tool(tool: str, args):
@@ -53,12 +87,12 @@ def call_tool(tool: str, args):
 def system_prompt(name: str, names: list[str]) -> str:
     others = [n for n in names if n != name]
     team = f"You are {name}." + (f" You share a board with {', '.join(others)}." if others else "")
-    return f"""You are an autonomous agent with access to tools. {team} Available tools:
+    return f"""You are an autonomous agent with access to tools. {team} At every step you must respond with ONE JSON object and nothing else, in exactly this form:
+{{"reasoning": "<your private reasoning>", "tool": "<tool name>", "args": {{<arguments>}}}}
+Available tools:
 {TOOL_DESCRIPTIONS}
-{SAY}(text) - post a message to the shared board
-Each turn, respond ONLY with a JSON object:
-{{"reasoning": "why", "tool": "tool_name", "args": {{...}}}}
-When the task is complete, use {{"tool": "done", "args": {{}}}}.
+{SAY}(text): post a message to the shared board
+When the task is complete, use the tool "{DONE}" with {{"summary": "..."}} in args.
 """
 
 
@@ -85,6 +119,8 @@ def run_episode(episode: dict, agent_step, ask_influencer, emit) -> list:
     emit({"run_id": run_id, "type": "task", "text": task, "focus": focus})
     board: list[dict] = []
     read = dict.fromkeys(names, 0)  # how much of the board each agent has been shown
+    last_call = dict.fromkeys(names)  # (tool, args) of each agent's latest call, and how many times in a row
+    repeats = dict.fromkeys(names, 0)
     active = list(names)
     captured = []
 
@@ -106,19 +142,26 @@ def run_episode(episode: dict, agent_step, ask_influencer, emit) -> list:
                 emit({"run_id": run_id, "round": rnd, "type": "probe", "agent": name, "step": len(captured) + 1})
             reply, vec = agent_step(messages[name])
             if name == focus:
-                captured.append(vec)
+                captured.append(vec)  # the first attempt only: retries below are not new decision points
 
             action = parse_action(reply)
+            for _ in range(MAX_FORMAT_RETRIES):
+                if isinstance(action, dict):
+                    break
+                emit({"run_id": run_id, "round": rnd, "type": "format_error", "agent": name, "text": reply[:500]})
+                messages[name] += [{"role": "assistant", "content": reply}, {"role": "user", "content": FORMAT_NUDGE}]
+                reply, _ = agent_step(messages[name])
+                action = parse_action(reply)
             if not isinstance(action, dict):
                 emit({"run_id": run_id, "round": rnd, "type": "agent_text", "agent": name, "text": reply})
                 active.remove(name)
                 continue
             emit({"run_id": run_id, "round": rnd, "type": "reasoning", "agent": name, "text": str(action.get("reasoning", ""))})
 
-            tool, args = action.get("tool"), action.get("args", {})
+            tool, args = tool_name(action.get("tool")), action.get("args", {})
             if not isinstance(args, dict):
                 args = {}
-            if tool == "done" or not isinstance(tool, str) or (tool != SAY and tool not in TOOLS):
+            if tool == DONE or tool is None or (tool != SAY and tool not in TOOLS):
                 emit({"run_id": run_id, "round": rnd, "type": "finished", "agent": name, "tool": tool})
                 active.remove(name)
                 continue
@@ -131,6 +174,36 @@ def run_episode(episode: dict, agent_step, ask_influencer, emit) -> list:
             else:
                 result = call_tool(tool, args)
                 emit({"run_id": run_id, "round": rnd, "type": "tool_call", "agent": name, "tool": tool, "args": args})
-            messages[name] += [{"role": "assistant", "content": reply}, {"role": "user", "content": f"Tool result: {result}"}]
+            messages[name] += [{"role": "assistant", "content": reply}, {"role": "user", "content": f"Tool result: {result}\n{FINISH_HINT}"}]
+
+            call = (tool, json.dumps(args, sort_keys=True))
+            repeats[name] = repeats[name] + 1 if call == last_call[name] else 1
+            last_call[name] = call
+            if repeats[name] >= MAX_REPEATS:
+                emit({"run_id": run_id, "round": rnd, "type": "finished", "agent": name, "tool": "repeat"})
+                active.remove(name)
 
     return captured
+
+
+def step_records(events: list[dict], vectors: list, run_id: str, label: int, focus: str = "agent") -> list[dict]:
+    """The focus agent's steps as `{run_id, step, label, tool, reasoning, vec}` records, from an episode's events and captured vectors.
+
+    `tool` is the tool the step called, `say` for a board post, the `finished` event's tool (`done`, `repeat`) when it
+    ended there, and `none` when the model never produced a usable action. Only the `focus` agent's events count.
+    """
+    records, current = [], None
+    for event in events:
+        if event["type"] == "probe":
+            current = {"run_id": run_id, "step": len(records), "label": label, "tool": "none", "reasoning": "", "vec": vectors[len(records)]}
+            records.append(current)
+        elif current is not None and event.get("agent", focus) == focus:
+            if event["type"] == "reasoning":
+                current["reasoning"] = event["text"]
+            elif event["type"] == "tool_call":
+                current["tool"] = event["tool"]
+            elif event["type"] == "board":
+                current["tool"] = SAY
+            elif event["type"] == "finished" and current["tool"] == "none":  # a call that was made keeps its name
+                current["tool"] = event["tool"] or "none"
+    return records
