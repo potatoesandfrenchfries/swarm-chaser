@@ -95,12 +95,15 @@ def section_3_spread(spread_shares: dict, documented_cases: list[dict], baseline
     )
 
 
-def section_4_validation(validation_report: dict) -> str:
+def section_4_validation(validation_report: dict, table: list[dict] | None = None) -> str:
     """MVP.md Goal item 4: perturbation test, cross-vendor agreement, known-failure recall,
-    spot-check. CUSTOMISE: `validation_report` should merge the dicts from
-    `eval.validation.perturbation_test`, `agreement_report` and `known_failure_recall`, plus a
-    hand-written spot-check note (d), which has no function of its own.
+    spot-check. Pass `table` from `eval.validation.validation_table` to show each check with its
+    value, sample size and what it does not show; `validation_report` is then unused. Without
+    `table`, the raw `validation_report` dict is shown with its spot-check note.
     """
+    if table is not None:
+        rows = [[r["measure"], r["value"], r["n"], r["note"]] for r in table]
+        return f"<h2>4. Checker validation</h2>{_table(['Check', 'Value', 'n', 'What it does not show'], rows)}"
     rows = [[k, v] for k, v in validation_report.items() if k != "spot_check_note"]
     note = validation_report.get("spot_check_note", "CUSTOMISE: fill in after reading ~20 outputs by hand.")
     return f"<h2>4. Checker validation</h2>{_table(['Measure', 'Value'], rows)}<p>Spot-check: {html.escape(note)}</p>"
