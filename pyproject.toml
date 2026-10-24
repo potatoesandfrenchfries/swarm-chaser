@@ -1,0 +1,48 @@
+[project]
+name = "claim-spread"
+version = "0.1.0"
+description = "Do false claims spread through the AI Village, and what stops them?"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    # LLM calls (extraction, checker, judge, forecaster, influencer)
+    "anthropic",
+    "openai",            # also used for OpenRouter via base_url
+    "google-genai",      # Gemini extraction model
+    "tenacity",          # retries around model calls
+    "httpx",
+
+    # Sandbox (M9 to M11): needs Docker running
+    "inspect-ai",
+
+    # Data access and config
+    "huggingface-hub",   # AI Village dataset download
+    "datasets",
+    "pyyaml",
+    "python-dotenv",
+    "pydantic",
+
+    # Analysis and stats (Wilson intervals, kappa, Brier, AUC, decision curve)
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    "statsmodels",
+
+    # Spread linking baselines and text matching
+    "rapidfuzz",
+
+    # Results page and plots
+    "matplotlib",
+    "jinja2",
+    "tqdm",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+    "ipykernel",
+]
+
+[tool.uv]
+package = false
