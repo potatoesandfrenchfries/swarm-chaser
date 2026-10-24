@@ -44,9 +44,10 @@ def test_checker_and_report_agree_on_the_verdict_labels():
 
 
 def test_a_checker_verdict_is_always_accepted_by_the_headline():
-    reply = {"verdict": "supported", "evidence": [], "confidence": 0.5}
+    reply = {"verdict": "supported", "evidence": ["done"], "confidence": 0.5}
     c = extract.Claim("c1", "e1", "a", "m", "2025-05-01T00:00:00Z", "chat", "q", "x", True)
-    v = checker.check_claim(c, [], lambda p, t: reply, "j")
+    window = [{"id": "r1", "agent": "a", "ts": "2025-05-01T00:01:00Z", "source": "chat", "text": "done"}]
+    v = checker.check_claim(c, window, lambda p, t: reply, "j")
     record = {"claim_id": v.claim_id, "model": "m", "ts": c.ts, "verdict": v.verdict, "extractor": c.extractor, "judge": v.judge}
     assert headline.shares([record])["supported"]["k"] == 1
 

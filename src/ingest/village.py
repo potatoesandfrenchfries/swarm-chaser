@@ -28,8 +28,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # How close two timestamps must be to count as "the same moment" when checking whether
-# memories and the timeline can be joined (`join_report`). This is a first guess, to be set from
-# the real memories-versus-chat gaps by M2.4.
+# memories and the timeline can be joined (`join_report`). M2.4 ran it on the slice (ingest/join.py,
+# join-test.json): at 60 s one episode passes and the other does not, because a memory is written when the
+# agent consolidates, not when it speaks. The verdict is taken at the checker's window instead; 60 s stays
+# as the strict reference.
 JOIN_TOLERANCE_SECONDS = 60
 
 
@@ -158,8 +160,8 @@ def _parse_ts(ts: str) -> float:
 
 def join_report(messages: list[dict], memories: list[dict], tolerance: float = JOIN_TOLERANCE_SECONDS) -> dict:
     """Pass/fail check: for each agent, does every memory land within `tolerance` seconds of
-    some chat message by the same agent? Record this result once, by hand, as scope.md's
-    "join test" (section 9, question 2) before building anything that depends on the join.
+    some chat message by the same agent? This is the strict form of the join test. The recorded
+    verdict (scope.md section 9, question 2) comes from `ingest.join.join_evidence`.
     """
     by_agent = {}
     for m in messages:
@@ -179,7 +181,7 @@ def join_report(messages: list[dict], memories: list[dict], tolerance: float = J
         "n_memories": n,
         "n_unmatched": len(unmatched),
         "unmatched_ids": unmatched[:20],  # a sample to look at, not the whole list
-        "pass": n > 0 and len(unmatched) / n < 0.1,  # CUSTOMISE: M2.4 replaces this 10% with a threshold read off the real data
+        "pass": n > 0 and len(unmatched) / n < 0.1,
     }
 
 
