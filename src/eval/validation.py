@@ -143,8 +143,6 @@ def agreement_report(verdicts_a: list, verdicts_b: list) -> dict:
 # --- (c) known-failure recall -------------------------------------------------------------
 
 
-# The rubric's usable findings; `drop` and `needs screenshots` entries are not part of the 96.
-USABLE_FINDING_GROUPS = ("keep", "rewrite")
 
 # Where the gitignored clone of slopvestigatorbench (scope.md, REPOS.md) puts the findings.
 SEED_FINDINGS_PATH = "temps_ideas/repos/slopvestigatorbench-aivillage/benchmark/incidents/aivillage/findings/final-findings.json"
@@ -173,7 +171,9 @@ def load_seed_findings(path) -> list[dict]:
     import json
     from pathlib import Path
 
-    return [f for f in json.loads(Path(path).read_text(encoding="utf-8")) if f.get("group") in USABLE_FINDING_GROUPS]
+    from ingest.slice import USABLE_GROUPS
+
+    return [f for f in json.loads(Path(path).read_text(encoding="utf-8")) if f.get("group") in USABLE_GROUPS]
 
 
 def tag_false_claim_findings(findings: list[dict], call_tagger: Callable[[str, str], object]) -> tuple[list[dict], list[dict]]:
