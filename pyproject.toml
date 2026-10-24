@@ -64,7 +64,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["check", "eval", "extract", "ingest", "lab", "report", "spread"]
+known-first-party = ["adapters", "check", "eval", "extract", "ingest", "lab", "llm", "report", "spread"]
 
 [tool.coverage.run]
 source = ["src"]
