@@ -92,9 +92,9 @@ def test_the_time_window_is_start_inclusive_end_exclusive_for_both_kinds(tmp_pat
     mems = write_jsonl(tmp_path / "k.jsonl", [memory(f"k{i}", "alice", t, "x") for i, t in enumerate(stamps)])
     start, end = "2025-05-01T10:00:00.000000Z", "2025-05-01T11:00:00.000000Z"
     stats = {}
-    assert [r["id"] for r in load_messages(msgs, lookup, start, end, stats)] == ["m1", "m2"]
+    assert [r["id"] for r in load_messages(msgs, lookup, start, end, stats=stats)] == ["m1", "m2"]
     assert [r["id"] for r in load_memories(mems, lookup, start, end)] == ["k1", "k2"]
-    assert stats["outside_window"] == 2
+    assert stats["outside_slice"] == 2
 
 
 def test_episode_is_the_goal_period_containing_the_time(lookup):
@@ -539,3 +539,12 @@ def test_write_page_creates_missing_directories_and_round_trips(tmp_path):
     page = build_page(["<h2>x</h2>"], title="é ✓")
     write_page(page, out)
     assert Path(out).read_text(encoding="utf-8") == page
+
+
+def test_episodes_filter_keeps_only_the_named_goal_periods_in_both_kinds(village, lookup):
+    messages, memories = village
+    stats = {}
+    assert [r["id"] for r in load_messages(messages, lookup, episodes={"e2"}, stats=stats)] == ["m6"]
+    assert stats["outside_slice"] == 5
+    assert load_memories(memories, lookup, episodes={"e2"}) == []
+    assert len(load_messages(messages, lookup, episodes={"e1", "e2"})) == len(MESSAGES)

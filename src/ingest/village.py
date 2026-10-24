@@ -86,9 +86,15 @@ def _in_window(ts: str, start: str | None, end: str | None) -> bool:
     return (start is None or ts >= start) and (end is None or ts < end)
 
 
-def load_jsonl(path: Path, row_fn, start: str | None = None, end: str | None = None, stats: dict | None = None) -> list[dict]:
-    """Normalise each record with `row_fn(raw) -> row or None` (None = skipped, reason counted in `stats`),
-    keeping rows with `start <= ts < end` (normalised timestamps; either bound may be None).
+def _wanted(ts: str, lookup: Lookup, start: str | None, end: str | None, episodes: set[str] | None) -> bool:
+    """True if `ts` is inside [start, end) and, when `episodes` is given, inside one of those episodes."""
+    return _in_window(ts, start, end) and (episodes is None or lookup.episode_of(ts) in episodes)
+
+
+def load_jsonl(path: Path, row_fn, keep=lambda ts: True, stats: dict | None = None) -> list[dict]:
+    """Normalise each record with `row_fn(raw, stats) -> row or None` (None = skipped, reason counted in
+    `stats`), keeping rows whose normalised `ts` passes `keep(ts)`. Rows that fail it are counted as
+    `outside_slice`.
     """
     stats = stats if stats is not None else {}
     rows = []
@@ -96,14 +102,17 @@ def load_jsonl(path: Path, row_fn, start: str | None = None, end: str | None = N
         row = row_fn(raw, stats)
         if row is None:
             continue
-        if not _in_window(row["ts"], start, end):
-            stats["outside_window"] = stats.get("outside_window", 0) + 1
+        if not keep(row["ts"]):
+            stats["outside_slice"] = stats.get("outside_slice", 0) + 1
             continue
         rows.append(row)
     return rows
 
 
-def load_messages(path: Path, lookup: Lookup, start: str | None = None, end: str | None = None, stats: dict | None = None) -> list[dict]:
+def load_messages(
+    path: Path, lookup: Lookup, start: str | None = None, end: str | None = None, episodes: set[str] | None = None, stats: dict | None = None
+) -> list[dict]:
+    """Agent chat rows with `start <= ts < end` and, if `episodes` is given, inside those episodes."""
     def to_row(raw: dict, st: dict) -> dict | None:
         if raw["speaker_type"] != "agent":
             st["human_rows_skipped"] = st.get("human_rows_skipped", 0) + 1
@@ -116,14 +125,20 @@ def load_messages(path: Path, lookup: Lookup, start: str | None = None, end: str
         ts = normalise_ts(raw["created_at"])
         return {"id": raw["id"], "episode_id": lookup.episode_of(ts), "agent": agent["name"], "model": agent["model"], "ts": ts, "source": "chat", "text": text, "room": raw.get("room_id") or ""}
 
-    return load_jsonl(path, to_row, start, end, stats)
+    return load_jsonl(path, to_row, lambda ts: _wanted(ts, lookup, start, end, episodes), stats)
 
 
-def load_memories(path: Path, lookup: Lookup, start: str | None = None, end: str | None = None, stats: dict | None = None) -> list[dict]:
+def load_memories(
+    path: Path, lookup: Lookup, start: str | None = None, end: str | None = None, episodes: set[str] | None = None, stats: dict | None = None
+) -> list[dict]:
+    """Agent memory rows, selected like `load_messages`. The slice test runs first on every row because
+    most of the 2.5 GB file is outside it.
+    """
+
     def to_row(raw: dict, st: dict) -> dict | None:
         ts = normalise_ts(raw["created_at"])
-        if not _in_window(ts, start, end):  # decided before anything else: most of the 2.5 GB file is outside the slice
-            st["outside_window"] = st.get("outside_window", 0) + 1
+        if not _wanted(ts, lookup, start, end, episodes):
+            st["outside_slice"] = st.get("outside_slice", 0) + 1
             return None
         text = raw.get("content") or ""
         if not text.strip():
@@ -132,7 +147,7 @@ def load_memories(path: Path, lookup: Lookup, start: str | None = None, end: str
         agent = lookup.agents[raw["agent_id"]]
         return {"id": raw["id"], "episode_id": lookup.episode_of(ts), "agent": agent["name"], "model": agent["model"], "ts": ts, "source": "memory", "text": text, "room": ""}
 
-    return load_jsonl(path, to_row, start, end, stats)
+    return load_jsonl(path, to_row, stats=stats)
 
 
 def _parse_ts(ts: str) -> float:
