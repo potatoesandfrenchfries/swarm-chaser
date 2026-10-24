@@ -4,7 +4,7 @@ import pytest
 
 from check.checker import Verdict
 from extract.claims import Claim
-from llm.client import Completion, ModelClient, ModelSpec
+from llm.client import Completion, ModelClient, ModelSpec, ReplyNotJSON
 from report.page import build_page, section_3_spread
 from spread.linker import (
     SpreadEdge,
@@ -238,3 +238,24 @@ def test_visible_rows_drops_authors_who_were_never_in_the_claims_room():
     timelines = {"b": [("2026-03-01 08:00:00", "general")], "c": [("2026-03-01 08:00:00", "builders")]}
     assert [r["id"] for r in visible_rows(c, rows, "general", timelines)] == ["r1", "r3"]
     assert [r["id"] for r in visible_rows(c, rows, None, timelines)] == ["r1", "r2", "r3"]  # before rooms existed
+
+
+def test_model_link_records_bad_replies_and_carries_on_when_asked():
+    rows = [row(rid, f"2025-05-01T0{i}:00:00Z", text=rid) for i, rid in enumerate(["r1", "r2", "r3"], start=1)]
+    replies = {"r1": {"relation": "corrects"}, "r2": ["not", "an", "object"]}
+
+    def classifier(prompt, text):
+        rid = text.rsplit("LATER MESSAGE: ", 1)[1]
+        if rid not in replies:
+            raise ReplyNotJSON("garbled")  # r3, as the cached client raises on unparseable text
+        return replies[rid]
+
+    failed = []
+    edges = model_link(claim(), rows, classifier, failed=failed)
+    assert [e.later_message_id for e in edges] == ["r1"]
+    assert failed == ["r2", "r3"]
+
+
+def test_model_link_still_stops_on_a_bad_reply_by_default():
+    with pytest.raises(ReplyNotJSON):
+        model_link(claim(), [row("r1", "2025-05-01T01:00:00Z")], lambda p, t: "supported")
