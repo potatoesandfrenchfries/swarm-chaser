@@ -32,9 +32,9 @@ usd_per_gbp = 1.25
 # reruns that model's calls.
 #
 # Prices, checked 2026-10-24: Claude Haiku 5.5 is $0.10 in / $0.50 out for prompts up to 100K tokens ($0.50 /
-# $2.50 above that; our windows and chunks are far smaller). Gemini 3.8 Flash is $0.75 in / $3.75 out through
-# 2026-12-31 and $1.50 / $7.50 from 2027-01-01, with thinking counted as output (ai.google.dev/gemini-api/
-# docs/pricing). `gemini-2.5-flash` is in the model list but returns 404 "no longer available to new users".
+# $2.50 above that; our windows and chunks are far smaller). Checker B is gpt-oss-120b on Groq, $0.15 in / $0.60
+# out (console.groq.com/docs/models, read 2026-10-24); it reasons, and Groq reports that as completion tokens.
+# It replaced Gemini 3.8 Flash ($0.75 / $3.75), which put the 649-claim check sample at about $21 of a $3.75 budget.
 
 [extractor]
 vendor = "anthropic"
@@ -50,9 +50,17 @@ max_tokens = 8000
 usd_per_mtok_in = 0.10
 usd_per_mtok_out = 0.50
 
-[checkers.b]
+# Models that were used and then replaced. Their answers are still in the cache and were paid for, so the budget
+# keeps counting them (src/llm/budget.py). Remove an entry only if the cache is cleared of its answers.
+[retired.gemini_3_8_flash]
 vendor = "gemini"
 model = "gemini-3.8-flash"
-max_tokens = 16000
 usd_per_mtok_in = 0.75
 usd_per_mtok_out = 3.75
+
+[checkers.b]
+vendor = "groq"
+model = "openai/gpt-oss-120b"
+max_tokens = 16000
+usd_per_mtok_in = 0.15
+usd_per_mtok_out = 0.60

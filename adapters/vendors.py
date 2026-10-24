@@ -13,6 +13,7 @@ import os
 from llm.client import Completion, ModelSpec, Transport
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 ATTEMPTS = 5
 
 
@@ -74,6 +75,14 @@ def openrouter_transport() -> Transport:
     return _chat_completions(openai.OpenAI(api_key=_key("OPENROUTER_API_KEY"), base_url=OPENROUTER_BASE_URL))
 
 
+def groq_transport() -> Transport:
+    """Open-weight models on Groq, through its OpenAI-compatible endpoint. Checker B names this vendor. A reasoning
+    model's thinking is billed and reported as completion tokens, so the spend cap sees it."""
+    import openai
+
+    return _chat_completions(openai.OpenAI(api_key=_key("GROQ_API_KEY"), base_url=GROQ_BASE_URL))
+
+
 def openai_transport() -> Transport:
     """OpenAI's own API. Checker B names this vendor; it has never been called live (STRESSTEST.md), so the
     key in `.env` may be a placeholder and the model id is whatever `config.toml` says, unchecked."""
@@ -98,7 +107,7 @@ def gemini_transport() -> Transport:
     return call
 
 
-TRANSPORTS = {"anthropic": anthropic_transport, "openai": openai_transport, "openrouter": openrouter_transport, "gemini": gemini_transport}
+TRANSPORTS = {"anthropic": anthropic_transport, "openai": openai_transport, "openrouter": openrouter_transport, "gemini": gemini_transport, "groq": groq_transport}
 
 
 def make_transport(vendor: str) -> Transport:
