@@ -74,3 +74,79 @@ def decision_curve(verdicts: list, score_fn=default_score) -> list[dict]:
             }
         )
     return points
+
+
+def random_curve(verdicts: list) -> list[dict]:
+    """The expected curve if claims were reviewed in random order: after i of n claims, i/n of
+    the false ones on average. This is the baseline a ranking has to beat.
+    """
+    n = len(verdicts)
+    total_false = sum(v.verdict == "contradicted" for v in verdicts)
+    return [
+        {
+            "claims_reviewed": i,
+            "false_claims_caught": i * total_false / n,
+            "share_reviewed": i / n,
+            "share_caught": i / n if total_false else float("nan"),
+        }
+        for i in range(1, n + 1)
+    ]
+
+
+def caught_at(points: list[dict], share_reviewed: float) -> float:
+    """Share of false claims caught once `share_reviewed` of the claims have been read (the first
+    point at or past it). NaN for an empty curve.
+    """
+    for p in points:
+        if p["share_reviewed"] >= share_reviewed - 1e-9:
+            return p["share_caught"]
+    return float("nan")
+
+
+REVIEW_BUDGETS = (0.1, 0.2, 0.5)
+
+
+def compare_rankings(verdicts: list, rankings: dict) -> dict:
+    """Curves for each named `score_fn` plus the random baseline, and the share caught at each
+    of `REVIEW_BUDGETS`. A ranking earns its place only if it sits above "random".
+    """
+    curves = {name: decision_curve(verdicts, fn) for name, fn in rankings.items()}
+    curves["random"] = random_curve(verdicts)
+    return {"curves": curves, "caught_at": {name: {b: caught_at(pts, b) for b in REVIEW_BUDGETS} for name, pts in curves.items()}}
+
+
+def curve_svg(curves: dict, width: int = 360, height: int = 240) -> str:
+    """The curves as one inline SVG: share of claims reviewed (x) against share of false claims
+    caught (y). Stdlib only, no script, so the results page can embed it as it is. Each line also
+    has its own dash pattern, so it reads without colour.
+    """
+    import html
+
+    pad = 40
+    colours, dashes = ("#2563eb", "#d97706", "#6b7280"), ("", "6 3", "2 3")
+
+    def xy(p):
+        return f"{pad + p['share_reviewed'] * (width - 2 * pad):.1f},{height - pad - p['share_caught'] * (height - 2 * pad):.1f}"
+
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" aria-labelledby="dc-title">',
+        '<title id="dc-title">False claims caught against claims reviewed</title>',
+        f'<line x1="{pad}" y1="{height - pad}" x2="{width - pad}" y2="{height - pad}" stroke="currentColor"/>',
+        f'<line x1="{pad}" y1="{pad}" x2="{pad}" y2="{height - pad}" stroke="currentColor"/>',
+        f'<text x="{width / 2}" y="{height - 6}" text-anchor="middle" font-size="11" fill="currentColor">Share of claims reviewed</text>',
+        f'<text x="12" y="{height / 2}" text-anchor="middle" font-size="11" fill="currentColor" transform="rotate(-90 12 {height / 2})">Share of false claims caught</text>',
+    ]
+    for share in (0.0, 0.5, 1.0):
+        x, y = pad + share * (width - 2 * pad), height - pad - share * (height - 2 * pad)
+        parts.append(f'<text x="{x:.1f}" y="{height - pad + 13}" text-anchor="middle" font-size="10" fill="currentColor">{share:.0%}</text>')
+        parts.append(f'<text x="{pad - 4}" y="{y + 3:.1f}" text-anchor="end" font-size="10" fill="currentColor">{share:.0%}</text>')
+    for i, (name, points) in enumerate(curves.items()):
+        drawn = [p for p in points if p["share_caught"] == p["share_caught"]]  # NaN when there are no false claims
+        colour, dash = colours[i % 3], dashes[i % 3]
+        start = f"{pad},{height - pad} " if drawn else ""
+        parts.append(f'<polyline fill="none" stroke="{colour}" stroke-width="2" stroke-dasharray="{dash}" points="{start}{" ".join(xy(p) for p in drawn)}"/>')
+        # Bottom right: the area a useful ranking leaves empty.
+        legend_y = height - pad - 8 - 14 * (len(curves) - 1 - i)
+        parts.append(f'<text x="{width - pad}" y="{legend_y}" text-anchor="end" font-size="11" fill="{colour}">{html.escape(name)}</text>')
+    parts.append("</svg>")
+    return "".join(parts)
