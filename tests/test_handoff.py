@@ -144,3 +144,11 @@ def test_rebuilding_gives_the_same_contents(tmp_path):
         build_sample(tmp_path / "s.sqlite", tmp_path / f"{name}.sqlite", [claim("c", "m2")], [], export)
         dumps.append("\n".join(sqlite3.connect(tmp_path / f"{name}.sqlite").iterdump()))
     assert dumps[0] == dumps[1]
+
+
+def test_a_claim_judged_twice_by_one_vendor_keeps_its_first_verdict_and_the_repeat_is_counted(sample):
+    db, _ = sample
+    report = write_verdicts(db, [Verdict("e1#0-e1-0", "supported", [], "a", 0.1), Verdict("e1#1-e1-0", "supported", [], "a", 0.7)])
+    assert report == {"verdicts": 1, "verdicts_repeated": 1}
+    assert [(v.claim_id, v.verdict) for v in read_verdicts(db) if v.judge == "a"] == [("e1#0-e1-0", "contradicted"), ("e1#1-e1-0", "supported")]
+

@@ -74,14 +74,18 @@ def write_claims(db: sqlite3.Connection, claims: list[Claim]) -> dict:
     return {"claims": len(out), "episode_repaired": repaired, "row_missing": orphans}
 
 
-def write_verdicts(db: sqlite3.Connection, verdicts: list[Verdict]) -> int:
-    """Insert verdicts; a claim judged twice by one vendor keeps the later one."""
+def write_verdicts(db: sqlite3.Connection, verdicts: list[Verdict]) -> dict:
+    """Insert verdicts. A claim judged twice by one vendor keeps its first verdict, as `eval.validation.agreement_report`
+    does, and the repeats are counted rather than lost. Only that conflict is skipped: an unknown verdict word still fails.
+    """
+    before = db.total_changes
     db.executemany(
-        "INSERT OR REPLACE INTO verdicts VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO verdicts VALUES (?, ?, ?, ?, ?) ON CONFLICT (claim_id, judge) DO NOTHING",
         [(v.claim_id, v.judge, v.verdict, v.confidence, json.dumps(v.evidence, ensure_ascii=False)) for v in verdicts],
     )
     db.commit()
-    return len(verdicts)
+    stored = db.total_changes - before
+    return {"verdicts": stored, "verdicts_repeated": len(verdicts) - stored}
 
 
 def read_claims(db: sqlite3.Connection) -> list[Claim]:
@@ -190,7 +194,7 @@ def build_sample(slice_db: str | Path, out: str | Path, claims: list[Claim], ver
     rows = read_rows(connect(slice_db))
     db = connect_sample(out)
     write_rows(db, rows)
-    report = {"rows": len(rows), **write_claims(db, claims), "verdicts": write_verdicts(db, verdicts)}
+    report = {"rows": len(rows), **write_claims(db, claims), **write_verdicts(db, verdicts)}
     data = read_room_data(export_dir, max(r["ts"] for r in rows))
     write_room_data(db, data)
     report["rooms"] = data["report"]
