@@ -52,11 +52,8 @@ def anthropic_transport() -> Transport:
     return call
 
 
-def openrouter_transport() -> Transport:
-    """Any model on OpenRouter, through the OpenAI-compatible endpoint. Model ids look like "vendor/model"."""
-    import openai
-
-    client = openai.OpenAI(api_key=_key("OPENROUTER_API_KEY"), base_url=OPENROUTER_BASE_URL)
+def _chat_completions(client) -> Transport:
+    """A transport over an OpenAI-style chat completions client (OpenAI itself, or OpenRouter)."""
 
     @_retrying
     def call(spec: ModelSpec, system: str, user: str) -> Completion:
@@ -68,6 +65,21 @@ def openrouter_transport() -> Transport:
         return Completion(resp.choices[0].message.content or "", usage.prompt_tokens if usage else 0, usage.completion_tokens if usage else 0)
 
     return call
+
+
+def openrouter_transport() -> Transport:
+    """Any model on OpenRouter, through the OpenAI-compatible endpoint. Model ids look like "vendor/model"."""
+    import openai
+
+    return _chat_completions(openai.OpenAI(api_key=_key("OPENROUTER_API_KEY"), base_url=OPENROUTER_BASE_URL))
+
+
+def openai_transport() -> Transport:
+    """OpenAI's own API. Checker B names this vendor; it has never been called live (STRESSTEST.md), so the
+    key in `.env` may be a placeholder and the model id is whatever `config.toml` says, unchecked."""
+    import openai
+
+    return _chat_completions(openai.OpenAI(api_key=_key("OPENAI_API_KEY")))
 
 
 def gemini_transport() -> Transport:
@@ -86,7 +98,7 @@ def gemini_transport() -> Transport:
     return call
 
 
-TRANSPORTS = {"anthropic": anthropic_transport, "openrouter": openrouter_transport, "gemini": gemini_transport}
+TRANSPORTS = {"anthropic": anthropic_transport, "openai": openai_transport, "openrouter": openrouter_transport, "gemini": gemini_transport}
 
 
 def make_transport(vendor: str) -> Transport:

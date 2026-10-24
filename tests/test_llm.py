@@ -215,3 +215,46 @@ def test_a_missing_key_names_the_variable(monkeypatch):
     monkeypatch.setitem(sys.modules, "openai", fake_module("openai", OpenAI=lambda **kw: None))
     with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
         load_vendors().make_transport("openrouter")
+
+
+def test_openai_transport_uses_its_own_key_and_no_base_url(monkeypatch):
+    pytest.importorskip("tenacity")
+    pytest.importorskip("dotenv")
+    seen, built = {}, {}
+
+    class Completions:
+        def create(self, **kw):
+            seen.update(kw)
+            message = types.SimpleNamespace(content='{"ok": true}')
+            return types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)], usage=types.SimpleNamespace(prompt_tokens=9, completion_tokens=4))
+
+    def build(**kw):
+        built.update(kw)
+        return types.SimpleNamespace(chat=types.SimpleNamespace(completions=Completions()))
+
+    monkeypatch.setitem(sys.modules, "openai", fake_module("openai", OpenAI=build))
+    monkeypatch.setenv("OPENAI_API_KEY", "placeholder")
+    out = load_vendors().make_transport("openai")(ModelSpec("openai", "m", temperature=None), "sys", "user")
+    assert out == Completion('{"ok": true}', 9, 4)
+    assert built == {"api_key": "placeholder"}  # not OpenRouter's endpoint
+    assert seen["messages"][0] == {"role": "system", "content": "sys"} and "temperature" not in seen
+
+
+def test_a_missing_openai_key_names_the_variable(monkeypatch):
+    pytest.importorskip("tenacity")
+    dotenv = pytest.importorskip("dotenv")
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda: None)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setitem(sys.modules, "openai", fake_module("openai", OpenAI=lambda **kw: None))
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        load_vendors().make_transport("openai")
+
+
+def test_openrouter_still_points_at_its_own_endpoint(monkeypatch):
+    pytest.importorskip("tenacity")
+    pytest.importorskip("dotenv")
+    built = {}
+    monkeypatch.setitem(sys.modules, "openai", fake_module("openai", OpenAI=lambda **kw: built.update(kw) or types.SimpleNamespace()))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "placeholder")
+    load_vendors().make_transport("openrouter")
+    assert built == {"api_key": "placeholder", "base_url": "https://openrouter.ai/api/v1"}
