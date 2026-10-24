@@ -57,11 +57,12 @@ def test_every_prompt_names_the_labels_its_parser_accepts():
     ("prompt", "keys"),
     [
         (extract.CLAIM_PROMPT, ["claims", "quote", "agent", "claim_type", "checkable"]),
+        (extract.CLAIM_PROMPT_E2, ["claims", "quote", "agent", "claim_type", "checkable"]),
         (checker.CHECKER_PROMPT, ["verdict", "evidence", "confidence"]),
         (linker.RELATION_PROMPT, ["relation"]),
         (forecaster.FORECASTER_PROMPT, ["probability"]),
     ],
-    ids=["extract", "check", "link", "forecast"],
+    ids=["extract-e1", "extract-e2", "check", "link", "forecast"],
 )
 def test_each_prompt_asks_for_the_keys_its_parser_reads(prompt, keys):
     assert all(f'"{k}"' in prompt for k in keys)

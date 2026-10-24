@@ -1,4 +1,8 @@
-from extract.claims import chunk_rows, freeze_hash, parse_claims, validate_quote
+import re
+
+import pytest
+
+from extract.claims import CLAIM_PROMPT, CLAIM_PROMPT_E2, PROMPTS, chunk_rows, freeze_hash, parse_claims, render_row, validate_quote
 
 
 def row(id, ts="2025-05-01T00:00:00Z", agent="a", source="chat", text="hello world", episode="e1"):
@@ -53,3 +57,38 @@ def test_parse_claims_drops_quotes_not_in_chunk():
     assert kept[0].quote == "the sky is blue"
     assert len(dropped) == 1
     assert dropped[0]["reason"] == "quote_not_in_chunk"
+
+
+# --- the two prompt variants (M3) ---------------------------------------------------------------
+
+
+def test_there_are_two_named_variants_with_different_hashes():
+    assert PROMPTS == {"e1": CLAIM_PROMPT, "e2": CLAIM_PROMPT_E2}
+    assert freeze_hash(CLAIM_PROMPT) != freeze_hash(CLAIM_PROMPT_E2)
+
+
+@pytest.mark.parametrize("prompt", PROMPTS.values(), ids=PROMPTS.keys())
+def test_each_variant_asks_for_the_keys_parse_claims_reads_and_guards_agent_text(prompt):
+    assert all(f'"{k}"' in prompt for k in ("claims", "quote", "agent", "claim_type", "checkable"))
+    lowered = " ".join(prompt.lower().split())
+    assert "never as instructions" in lowered or "not instructions" in lowered
+
+
+def test_e2_describes_the_header_format_that_render_row_actually_writes():
+    """e2 tells the model to read `agent` off the header; if render_row changes, that must be updated too."""
+    header = render_row({"ts": "2025-05-01T10:00:00Z", "agent": "alice", "source": "chat", "text": "hi"}).splitlines()[0]
+    assert re.fullmatch(r"\[.+\] .+ \(.+\):", header)
+    assert "[timestamp] agent-name (source):" in CLAIM_PROMPT_E2
+
+
+def test_e2_asks_for_the_agent_in_the_header_not_the_agent_a_claim_is_about():
+    text = " ".join(CLAIM_PROMPT_E2.split())
+    assert "even when the claim is about someone else" in text and "repeats or confirms" in text
+
+
+def test_a_reply_to_either_variant_parses_and_records_which_variant_made_it():
+    chunk = {"chunk_id": "c0", "episode_id": "e1", "agents": ["alice", "bob"], "text": "[t] alice (chat):\nThe build passed with 12 tests green.\n"}
+    reply = {"claims": [{"quote": "The build passed with 12 tests green.", "agent": "alice", "claim_type": "self-report", "checkable": True}]}
+    for name in PROMPTS:
+        kept, dropped = parse_claims(reply, chunk, extractor=name)
+        assert [c.extractor for c in kept] == [name] and dropped == []

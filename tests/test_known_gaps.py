@@ -13,7 +13,7 @@ import pytest
 from check.checker import CHECKER_PROMPT, check_claim, evidence_window
 from eval.forecaster import FORECASTER_PROMPT
 from eval.validation import FINDING_TAG_PROMPT
-from extract.claims import CLAIM_PROMPT, Claim, parse_claims
+from extract.claims import CLAIM_PROMPT, CLAIM_PROMPT_E2, Claim, parse_claims
 from lab.arms import LabRun, validate_run
 from spread.linker import RELATION_PROMPT, could_have_seen
 
@@ -108,6 +108,7 @@ def test_a_run_with_no_outcome_is_flagged_before_pooling():
     "prompt",
     [
         pytest.param(CLAIM_PROMPT, id="claim"),
+        pytest.param(CLAIM_PROMPT_E2, id="claim-e2"),
         pytest.param(CHECKER_PROMPT, id="checker"),
         pytest.param(FINDING_TAG_PROMPT, id="finding-tag"),
         pytest.param(RELATION_PROMPT, id="relation"),
