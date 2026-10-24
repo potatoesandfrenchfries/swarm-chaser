@@ -1,4 +1,5 @@
 import random
+from dataclasses import replace
 
 from check.checker import Verdict
 from eval.validation import (
@@ -25,6 +26,37 @@ def test_perturb_changes_a_number():
 def test_perturb_returns_none_when_nothing_to_change():
     rng = random.Random(0)
     assert perturb("no numbers or years here", rng) is None
+
+
+def test_perturb_never_makes_a_count_negative():
+    assert all(not perturb("passed 1 test", random.Random(s)).startswith("passed -") for s in range(50))
+
+
+def test_perturb_swaps_a_month_for_another_month():
+    out = perturb("shipped in May as planned", random.Random(0))
+    assert out != "shipped in May as planned"
+    assert out.split()[2] in {"January", "February", "March", "April", "June", "July", "August", "September", "October", "November", "December"}
+
+
+def test_perturb_leaves_the_verb_may_alone():
+    assert perturb("we may ship soon", random.Random(0)) is None
+
+
+def test_perturb_swaps_an_agent_name_for_another_agent():
+    out = perturb("bob confirmed the upload", random.Random(0), names=("alice", "bob", "carol"))
+    assert out.split()[0] in {"alice", "carol"}
+
+
+def test_perturb_needs_a_second_name_to_swap_to():
+    assert perturb("bob confirmed the upload", random.Random(0), names=("bob",)) is None
+
+
+def test_perturbation_test_swaps_names_across_the_claims_agents():
+    claims = [replace(claim("bob confirmed the upload"), agent="alice"), replace(claim("no change here"), agent="bob")]
+    seen = []
+    result = perturbation_test(claims, lambda c: seen.append(c.quote) or "contradicted")
+    assert result["n_perturbable"] == 1
+    assert seen == ["alice confirmed the upload"]
 
 
 def test_perturbation_test_reports_share_caught():

@@ -18,42 +18,57 @@ from typing import Callable, Optional
 
 # --- (a) perturbation test -------------------------------------------------------------
 
-# CUSTOMISE: these patterns are a starting point for "change a number, date or name". Extend
-# them once you see what real supported claims actually look like — plenty of claims have no
-# number/date/name at all and can't be perturbed this way, which is fine; they're just skipped.
+# Plenty of claims have no number, date or name and can't be perturbed; they are skipped.
+# Numeric dates ("2025-05-03", "May 3") are covered by the number rule.
 _NUMBER = re.compile(r"\b\d+(\.\d+)?\b")
-_YEAR = re.compile(r"\b(19|20)\d{2}\b")
+_MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+# Capitalised only, so the verb "may" and the word "march" are left alone.
+_DATE_WORD = re.compile(r"\b(" + "|".join(_MONTHS + _WEEKDAYS) + r")\b")
 
 
-def perturb(quote: str, rng: random.Random) -> Optional[str]:
-    """Change one number (or, failing that, one 4-digit year) in `quote`, keeping it the same
-    length category of change throughout the run. Returns None if nothing perturbable was
-    found, so the caller can skip that claim rather than silently perturbing nothing.
+def perturb(quote: str, rng: random.Random, names: tuple = ()) -> Optional[str]:
+    """Change one number, else one month or weekday, else one of `names` in `quote`.
+
+    Returns None if nothing perturbable was found, so the caller can skip that claim rather
+    than silently perturbing nothing. `names` must be in a fixed order (e.g. sorted) for the
+    swap to be reproducible by seed.
     """
-    m = _NUMBER.search(quote)
-    target = m or _YEAR.search(quote)
-    if not target:
-        return None
-    old = target.group(0)
-    try:
-        new = str(int(float(old)) + rng.choice([-1, 1]) * rng.randint(1, 10))
-    except ValueError:
-        return None
-    return quote[: target.start()] + new + quote[target.end() :]
+    if m := _NUMBER.search(quote):
+        n = int(float(m.group(0)))
+        delta = rng.randint(1, 10)
+        # Never below zero: "-3 tests passed" is a giveaway, not a planted error.
+        new = str(n - delta if n - delta >= 0 and rng.random() < 0.5 else n + delta)
+        return quote[: m.start()] + new + quote[m.end() :]
+
+    if m := _DATE_WORD.search(quote):
+        pool = _MONTHS if m.group(0) in _MONTHS else _WEEKDAYS
+        new = rng.choice([w for w in pool if w != m.group(0)])
+        return quote[: m.start()] + new + quote[m.end() :]
+
+    for name in names:
+        if m := re.search(rf"\b{re.escape(name)}\b", quote):
+            others = [x for x in names if x != name]
+            if not others:
+                return None
+            return quote[: m.start()] + rng.choice(others) + quote[m.end() :]
+    return None
 
 
 def perturbation_test(
     supported_claims: list, run_checker: Callable[[object], str], seed: int = 0
 ) -> dict:
-    """For every `supported` claim that can be perturbed, change a number and re-run the
-    checker (`run_checker(claim_with_perturbed_quote) -> verdict_str`). Report the share
-    caught (verdict != "supported"), which estimates how often a planted error would be
-    caught — a label-free sensitivity estimate, not a false-positive rate.
+    """For every `supported` claim that can be perturbed, change a number, date or agent name
+    and re-run the checker (`run_checker(claim_with_perturbed_quote) -> verdict_str`). Report
+    the share caught (verdict != "supported"), which estimates how often a planted error would
+    be caught — a label-free sensitivity estimate, not a false-positive rate.
     """
     rng = random.Random(seed)
+    # Swap names among the agents in the run, so a changed name is always a plausible one.
+    names = tuple(sorted({c.agent for c in supported_claims}))
     results = []
     for claim in supported_claims:
-        new_quote = perturb(claim.quote, rng)
+        new_quote = perturb(claim.quote, rng, names)
         if new_quote is None:
             continue
         perturbed = _with_quote(claim, new_quote)
