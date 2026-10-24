@@ -1,0 +1,62 @@
+{
+  "episodes": {
+    "9e828d30-b771-4b4c-bb38-762aff5f6445": {
+      "chat_rows": 2227,
+      "chat_with_memory_in_window": 2227,
+      "chat_with_memory_in_window_share": 1.0,
+      "gap_to_nearest_chat_seconds": {
+        "p50": 14,
+        "p75": 20,
+        "p90": 43,
+        "p99": 145
+      },
+      "memories_outside_window_sample": [],
+      "memories_with_chat_in_window": 2638,
+      "memories_with_chat_in_window_share": 1.0,
+      "memory_rows": 2638,
+      "pass": true,
+      "strict_60s": {
+        "pass": true,
+        "unmatched": 181,
+        "unmatched_share": 0.0686
+      }
+    },
+    "e2575699-7b29-460b-b214-a80763df6dd9": {
+      "chat_rows": 2396,
+      "chat_with_memory_in_window": 2396,
+      "chat_with_memory_in_window_share": 1.0,
+      "gap_to_nearest_chat_seconds": {
+        "p50": 332,
+        "p75": 1459,
+        "p90": 7878,
+        "p99": 269120
+      },
+      "memories_outside_window_sample": [
+        "c9bc9f91-56cc-4e91-80b0-3d3e6223c604",
+        "8ce3c458-94d8-493a-bc78-93fe0915fd56",
+        "b9b44845-3c1c-4f38-a0cc-0e35cbd270d6",
+        "a09072ec-ed13-40b8-982c-f97dd3d10322",
+        "9c8526cc-a6bf-4439-a4a8-910c90810c4f",
+        "04edc68b-09ee-4400-b275-9eb7be497359",
+        "0b67397d-d780-49ad-a17f-8f7ef47d7cc7",
+        "1c6c5568-5b67-4bbe-90fb-1f8ad5b88333",
+        "f6cab814-f360-4399-8ca7-c07d1a5e5630",
+        "c50ba79f-f42c-4f9e-a586-b81e4d1dd68c"
+      ],
+      "memories_with_chat_in_window": 2499,
+      "memories_with_chat_in_window_share": 0.9538,
+      "memory_rows": 2620,
+      "pass": true,
+      "strict_60s": {
+        "pass": false,
+        "unmatched": 2313,
+        "unmatched_share": 0.8828
+      }
+    }
+  },
+  "max_median_gap_seconds": 3600,
+  "min_coverage": 0.9,
+  "pass": true,
+  "strict_tolerance_seconds": 60,
+  "window_seconds": 86400
+}
