@@ -32,3 +32,11 @@ def test_page_lists_its_limits():
     assert "<h2>Limits</h2>" in page and "What this page does not show" in page
     assert "LLM-made" in page
     assert "confounded" in page
+
+
+def test_section_2_charts_the_contradicted_share_of_each_model_and_month():
+    h = headline([rec("contradicted", model="a"), rec("supported", model="a"), rec("supported", model="b", ts="2025-06-01T00:00:00Z")])
+    out = section_2_by_model_month(h)
+    assert out.count("<svg") == 2 and 'id="contradicted-by-model"' in out and 'id="contradicted-by-month"' in out
+    assert out.count("<circle") == 4  # two models and two months, one dot each
+    assert ">2025-06<" in out and "n=2" in out
