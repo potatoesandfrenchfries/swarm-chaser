@@ -1,11 +1,13 @@
 """The paid-sample driver, against a tiny database and fake transports. No key is read and nothing leaves the machine."""
 
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
 import pytest
 
+from extract.claims import Claim
 from ingest.store import COLUMNS, connect, write_rows
 from llm.client import Completion
 
@@ -90,3 +92,36 @@ def test_limit_checks_only_the_first_claims(env, capsys):
     capsys.readouterr()
     env.run("check", "--limit", "1")
     assert "1 claims to check" in capsys.readouterr().out
+
+
+def test_chunks_are_built_one_episode_at_a_time_so_each_keeps_its_own_episode_id():
+    rows = [{**ROWS[0], "id": "a1", "episode_id": "ep1"}, {**ROWS[1], "id": "b1", "episode_id": "ep2", "ts": "2025-06-01T10:00:00Z"}]
+    chunks = sample_run.episode_chunks(rows)
+    assert [(c["episode_id"], c["row_ids"]) for c in chunks] == [("ep1", ["a1"]), ("ep2", ["b1"])]
+    assert [c["chunk_id"] for c in chunks] == ["ep1#0", "ep2#0"]
+
+
+def test_publish_builds_the_sample_database_and_warns_when_no_verdicts_exist(env, capsys):
+    from test_handoff import write_export  # the synthetic village's export files, with chat_rooms
+
+    env.run("extract", "--chunks", "1", "--live")
+    db = env.tmp / "sample.sqlite"
+    export = write_export(env.tmp / "hf")
+    capsys.readouterr()
+    assert env.run("publish", "--export", str(export), "--sample-db", str(db)) == 0
+    captured = capsys.readouterr()
+    assert "verdicts table is empty" in captured.err and db.exists()
+    con = sqlite3.connect(db)
+    assert con.execute("SELECT COUNT(*) FROM claims").fetchone() == (2,) and con.execute("SELECT COUNT(*) FROM verdicts").fetchone() == (0,)
+
+
+def test_publish_without_extracted_claims_says_to_run_extract_first(env, capsys):
+    assert env.run("publish") == 2
+    assert "run the extract stage first" in capsys.readouterr().err
+
+
+def test_a_claim_stamped_with_the_wrong_episode_is_checked_in_its_rows_episode(env):
+    rows = [{**ROWS[0], "episode_id": "ep2"}]
+    c = Claim("ep1#0-e1-0", "ep1", "a", "m", "t", "chat", "q", "self-report", True, "e1", "r1")
+    orphan = Claim("ep1#0-e1-1", "ep1", "a", "m", "t", "chat", "q", "self-report", True, "e1", "")
+    assert [x.episode for x in sample_run.with_row_episodes([c, orphan], rows)] == ["ep2", "ep1"]
