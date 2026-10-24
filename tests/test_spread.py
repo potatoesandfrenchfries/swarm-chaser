@@ -1,11 +1,14 @@
 from check.checker import Verdict
 from extract.claims import Claim
 from llm.client import Completion, ModelClient, ModelSpec
+from report.page import section_3_spread
 from spread.linker import (
     SpreadEdge,
     baseline_link,
+    case_candidates,
     compare_linkers,
     could_have_seen,
+    documented_case,
     model_link,
     precision,
     relation_requests,
@@ -128,3 +131,41 @@ def test_precision_scores_hand_judgements_with_an_interval():
     p = precision(judged)
     assert (p["n_judged"], p["n_correct"], p["precision"]) == (4, 3, 0.75)
     assert p["low"] < 0.75 < p["high"]
+
+
+def timed_edge(claim_id, msg, relation, agent, ts):
+    return SpreadEdge(claim_id=claim_id, later_message_id=msg, relation=relation, agent=agent, ts=ts)
+
+
+def test_case_candidates_keeps_contradicted_claims_both_spread_and_challenged():
+    verdicts = [Verdict("c1", "contradicted", [], "j", 1), Verdict("c2", "contradicted", [], "j", 1), Verdict("c3", "supported", [], "j", 1), Verdict("c4", "contradicted", [], "j", 1)]
+    edges = [
+        timed_edge("c1", "r1", "repeats", "b", "2025-05-01T01:00:00Z"),
+        timed_edge("c1", "r2", "corrects", "d", "2025-05-01T02:00:00Z"),
+        timed_edge("c2", "r3", "endorses", "b", "2025-05-01T01:00:00Z"),
+        timed_edge("c2", "r4", "repeats", "c", "2025-05-01T01:30:00Z"),
+        timed_edge("c2", "r5", "disputes", "d", "2025-05-01T03:00:00Z"),
+        timed_edge("c3", "r6", "repeats", "b", "2025-05-01T01:00:00Z"),
+        timed_edge("c3", "r7", "corrects", "d", "2025-05-01T02:00:00Z"),  # supported claim: not a case
+        timed_edge("c4", "r8", "repeats", "b", "2025-05-01T01:00:00Z"),  # never challenged: not a case
+    ]
+    assert case_candidates(verdicts, edges) == ["c2", "c1"]  # c2 has more links
+
+
+def test_documented_case_runs_from_the_claim_to_its_first_correction():
+    c = claim(ts="2025-05-01T00:00:00Z", agent="alice", quote="the build passed")
+    edges = [
+        timed_edge("c1", "r2", "corrects", "dave", "2025-05-01T03:00:00Z"),
+        timed_edge("c1", "r1", "repeats", "bob", "2025-05-01T01:00:00Z"),
+        timed_edge("c1", "r3", "endorses", "bob", "2025-05-01T04:00:00Z"),
+        timed_edge("c9", "r4", "corrects", "eve", "2025-05-01T00:30:00Z"),  # another claim
+    ]
+    assert documented_case(c, edges) == {"claim": "the build passed", "who_said_it": "alice", "who_repeated": "bob", "who_corrected": "dave", "duration": "3.0 hours"}
+    assert "dave" in section_3_spread({}, [documented_case(c, edges)], {})  # fits the page as it is
+
+
+def test_documented_case_without_a_correction_says_how_long_it_went_unchallenged():
+    c = claim(ts="2025-05-01T00:00:00Z", agent="alice")
+    case = documented_case(c, [timed_edge("c1", "r1", "repeats", "bob", "2025-05-04T00:00:00Z")])
+    assert (case["who_corrected"], case["duration"]) == ("nobody", "unchallenged for at least 3.0 days")
+    assert documented_case(c, [])["duration"] == "no later links"
