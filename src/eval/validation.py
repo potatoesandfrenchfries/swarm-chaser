@@ -34,49 +34,61 @@ def perturb(quote: str, rng: random.Random, names: tuple = ()) -> Optional[str]:
     than silently perturbing nothing. `names` must be in a fixed order (e.g. sorted) for the
     swap to be reproducible by seed.
     """
+    changed = _perturb(quote, rng, names)
+    return changed[1] if changed else None
+
+
+def _perturb(quote: str, rng: random.Random, names: tuple) -> Optional[tuple[str, str]]:
+    """`perturb`, also saying which kind of change it made: "number", "date" or "name"."""
     if m := _NUMBER.search(quote):
         n = int(float(m.group(0)))
         delta = rng.randint(1, 10)
         # Never below zero: "-3 tests passed" is a giveaway, not a planted error.
         new = str(n - delta if n - delta >= 0 and rng.random() < 0.5 else n + delta)
-        return quote[: m.start()] + new + quote[m.end() :]
+        return "number", quote[: m.start()] + new + quote[m.end() :]
 
     if m := _DATE_WORD.search(quote):
         pool = _MONTHS if m.group(0) in _MONTHS else _WEEKDAYS
         new = rng.choice([w for w in pool if w != m.group(0)])
-        return quote[: m.start()] + new + quote[m.end() :]
+        return "date", quote[: m.start()] + new + quote[m.end() :]
 
     for name in names:
         if m := re.search(rf"\b{re.escape(name)}\b", quote):
             others = [x for x in names if x != name]
             if not others:
                 return None
-            return quote[: m.start()] + rng.choice(others) + quote[m.end() :]
+            return "name", quote[: m.start()] + rng.choice(others) + quote[m.end() :]
     return None
 
 
 def perturbation_test(
-    supported_claims: list, run_checker: Callable[[object], str], seed: int = 0
+    supported_claims: list, run_checker: Callable[[object], str], seed: int = 0, by_kind: Optional[dict] = None
 ) -> dict:
     """For every `supported` claim that can be perturbed, change a number, date or agent name
     and re-run the checker (`run_checker(claim_with_perturbed_quote) -> verdict_str`). Report
     the share caught (verdict != "supported"), which estimates how often a planted error would
     be caught — a label-free sensitivity estimate, not a false-positive rate.
+
+    Pass a dict as `by_kind` to have it filled with the counts split by kind of change,
+    `{"number": {"n": 50, "n_caught": 40}, ...}`, since a checker can catch one kind far more
+    often than another.
     """
     rng = random.Random(seed)
     # Swap names among the agents in the run, so a changed name is always a plausible one.
     names = tuple(sorted({c.agent for c in supported_claims}))
-    results = []
+    by_kind = {} if by_kind is None else by_kind
     for claim in supported_claims:
-        new_quote = perturb(claim.quote, rng, names)
-        if new_quote is None:
+        changed = _perturb(claim.quote, rng, names)
+        if changed is None:
             continue
-        perturbed = _with_quote(claim, new_quote)
-        verdict = run_checker(perturbed)
-        results.append(verdict != "supported")
+        kind, new_quote = changed
+        verdict = run_checker(_with_quote(claim, new_quote))
+        counts = by_kind.setdefault(kind, {"n": 0, "n_caught": 0})
+        counts["n"] += 1
+        counts["n_caught"] += verdict != "supported"
 
-    n = len(results)
-    caught = sum(results)
+    n = sum(k["n"] for k in by_kind.values())
+    caught = sum(k["n_caught"] for k in by_kind.values())
     return {
         "n_perturbable": n,
         "n_caught": caught,
@@ -299,14 +311,21 @@ def _shown(x: Optional[float]) -> str:
     return "n/a" if x is None or x != x else f"{x:.2f}"
 
 
-def validation_table(perturbation: dict, agreement: dict, recall: dict, spot_check: dict) -> list[dict]:
+def _kind_split(by_kind: dict) -> str:
+    """The note's split by kind, such as "; caught: numbers 40/50, dates 3/5", for the kinds tried, in a fixed order."""
+    parts = [f"{label} {by_kind[k]['n_caught']}/{by_kind[k]['n']}" for k, label in (("number", "numbers"), ("date", "dates"), ("name", "names")) if k in by_kind]
+    return f"; caught: {', '.join(parts)}" if parts else ""
+
+
+def validation_table(perturbation: dict, agreement: dict, recall: dict, spot_check: dict, perturbation_by_kind: Optional[dict] = None) -> list[dict]:
     """One row per check, each with its sample size, for the results page (M12.2).
 
     Inputs are the dicts from `perturbation_test`, `agreement_report` and
     `known_failure_recall`, plus `spot_check = {"n_read": int, "note": str}` written by hand
     after reading about 20 outputs. Shares carry their 95% Wilson interval. Every row says what
     the number does not show, because none of these is precision against human labels
-    (pipeline-rules).
+    (pipeline-rules). `perturbation_by_kind`, filled by `perturbation_test`, adds the caught
+    count for each kind of change to the perturbation row's note.
     """
     kappa_note = "consistency between vendors, not correctness"
     if agreement["unreliable"]:
@@ -316,7 +335,7 @@ def validation_table(perturbation: dict, agreement: dict, recall: dict, spot_che
             "measure": "Perturbation: share of changed claims caught",
             "value": _with_interval(perturbation["n_caught"], perturbation["n_perturbable"]),
             "n": perturbation["n_perturbable"],
-            "note": "sensitivity to planted errors, not a false-positive rate",
+            "note": "sensitivity to planted errors, not a false-positive rate" + _kind_split(perturbation_by_kind or {}),
         },
         {"measure": "Cohen's kappa between checker vendors", "value": _shown(agreement["kappa"]), "n": agreement["n_paired"], "note": kappa_note},
         {
