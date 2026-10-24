@@ -22,7 +22,8 @@ SPEC_KEYS = ("vendor", "model", "temperature", "max_tokens", "usd_per_mtok_in", 
 def checker_specs(path: Path = CONFIG) -> dict[str, ModelSpec]:
     """The checker models named in config.toml's `[checkers.<name>]` tables. M4 needs two, from different vendors."""
     table = tomllib.loads(Path(path).read_text(encoding="utf-8")).get("checkers", {})
-    specs = {name: ModelSpec(**{k: v for k, v in entry.items() if k in SPEC_KEYS}) for name, entry in table.items()}
+    # No temperature unless the entry sets one: ModelSpec's 0.0 default would be sent and the API rejects it.
+    specs = {name: ModelSpec(**{"temperature": None, **{k: v for k, v in entry.items() if k in SPEC_KEYS}}) for name, entry in table.items()}
     if len(specs) < 2:
         raise ValueError(f"config.toml [checkers] names {len(specs)} model(s); M4 needs two checker vendors")
     if len({s.vendor for s in specs.values()}) < 2:

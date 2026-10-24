@@ -3,6 +3,7 @@ import pytest
 from check import checker
 from check.checker import Verdict, check_claim, claim_window, evidence_window, window_text
 from check.run import checker_requests, checker_specs, run_checks
+from conftest import REPO_ROOT
 from extract.claims import Claim
 from llm.client import Completion, ModelClient, ModelSpec, ReplyNotJSON
 
@@ -229,3 +230,13 @@ def test_checker_specs_need_two_vendors(tmp_path):
     cfg.write_text('[checkers.a]\nvendor="v1"\nmodel="m1"\nusd_per_mtok_in=3.0\nusd_per_mtok_out=15.0\n[checkers.b]\nvendor="v2"\nmodel="m2"\n')
     specs = checker_specs(cfg)
     assert specs["a"].label == "v1/m1" and specs["a"].usd_per_mtok_in == 3.0 and specs["b"].vendor == "v2"
+    assert specs["a"].temperature is None  # sent to no vendor unless the config sets one
+
+
+def test_the_shipped_config_names_claude_for_checker_a_and_leaves_b_open():
+    import tomllib
+
+    table = tomllib.loads((REPO_ROOT / "config.toml").read_text(encoding="utf-8"))["checkers"]
+    assert list(table) == ["a"] and table["a"]["vendor"] == "anthropic" and table["a"]["model"] == "claude-sonnet-5-5"
+    with pytest.raises(ValueError, match="two"):
+        checker_specs()
