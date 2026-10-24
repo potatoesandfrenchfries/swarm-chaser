@@ -51,7 +51,7 @@ def connect_sample(path: str | Path) -> sqlite3.Connection:
     db.execute("CREATE TABLE IF NOT EXISTS room_members (room_id TEXT NOT NULL, agent TEXT NOT NULL, PRIMARY KEY (room_id, agent))")
     db.execute(
         "CREATE TABLE IF NOT EXISTS room_timeline (agent TEXT NOT NULL, ts TEXT NOT NULL, room_id TEXT NOT NULL, "
-        "source TEXT NOT NULL CHECK (source IN ('start', 'chat')), PRIMARY KEY (agent, ts))"
+        "source TEXT NOT NULL CHECK (source IN ('start', 'chat')), PRIMARY KEY (agent, ts, room_id))"
     )
     return db
 
@@ -105,7 +105,7 @@ def read_verdicts(db: sqlite3.Connection) -> list[Verdict]:
 
 def read_room_timelines(db: sqlite3.Connection) -> dict[str, list[tuple[str, str]]]:
     out: dict[str, list[tuple[str, str]]] = {}
-    for agent, ts, room in db.execute("SELECT agent, ts, room_id FROM room_timeline ORDER BY agent, ts"):
+    for agent, ts, room in db.execute("SELECT agent, ts, room_id FROM room_timeline ORDER BY agent, ts, room_id"):
         out.setdefault(agent, []).append((ts, room))
     return out
 

@@ -20,6 +20,7 @@ from ingest.handoff import (
     read_room_timelines,
     read_verdicts,
     write_claims,
+    write_room_data,
     write_verdicts,
 )
 from ingest.store import build_slice, read_rows
@@ -152,3 +153,8 @@ def test_a_claim_judged_twice_by_one_vendor_keeps_its_first_verdict_and_the_repe
     assert report == {"verdicts": 1, "verdicts_repeated": 1}
     assert [(v.claim_id, v.verdict) for v in read_verdicts(db) if v.judge == "a"] == [("e1#0-e1-0", "contradicted"), ("e1#1-e1-0", "supported")]
 
+
+def test_two_rooms_at_the_same_instant_are_both_kept_in_the_timeline():
+    db = connect_sample(":memory:")
+    write_room_data(db, {"rooms": [], "members": {}, "timeline": {"alice": [("2026-03-01T00:00:00.000000Z", "room1", "chat"), ("2026-03-01T00:00:00.000000Z", "room2", "chat")]}})
+    assert read_room_timelines(db) == {"alice": [("2026-03-01T00:00:00.000000Z", "room1"), ("2026-03-01T00:00:00.000000Z", "room2")]}
