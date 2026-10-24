@@ -98,6 +98,25 @@ Python 3.11+ with `uv`, SQLite, one extraction model and two checker models from
 vendors, `pytest`, a static HTML page. Docker, Inspect AI and OpenRouter for M9 to M11. Details
 are in [scope.md section 4](./scope.md#4-stack).
 
+## Decisions
+
+### Scope, models and spend (issue #19, 2026-10-24)
+
+- **Village plus sandbox, not the fallback.** Dataset access works (M1 is closed), so M2 to M8 run on the real
+  village data. The sandbox-only fallback below is not used.
+- **Total budget: three pounds** for every paid model call. It is held as $3.75 (an assumed 1.25 dollars to the
+  pound, not a live rate) in `config.toml` `[spend]`, and `src/llm/budget.py` enforces it as one total by
+  counting what the shared cache already holds, so a new run or process cannot start again from zero.
+- **Models:** extraction Claude Haiku 5.5; checker A Claude Haiku 5.5; checker B Gemini 3.8 Flash. The checkers
+  are from different vendors, as M4 requires. The extractor and checker A are the same model, which weakens
+  their independence and must be said on the page. Keys are in `.env`, which is git-ignored.
+- **What the budget buys.** Measured on a first sample, an extraction call costs about $0.0036, so the whole
+  slice (5,425 chunks) would cost about $19 for one prompt, and checking 649 claims with both vendors is
+  estimated at $11.6. Every result therefore rests on a small sample, and the page must say how many chunks and
+  claims were run. See `STRESSTEST.md`.
+- **Sandbox runs (M9 to M11) are not covered by this budget.** The `sandbox-lab` skill puts a round of 28 runs
+  at about $7. They need their own budget. If there is none, cut M9 to M11, as the risks below say.
+
 ## Implementation status
 
 Templates for each stage are in `src/`, with `CUSTOMISE` comments where a placeholder needs

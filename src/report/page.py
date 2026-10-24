@@ -13,6 +13,7 @@ it, rather than duplicating the assembly logic in two places.
 import html
 from pathlib import Path
 
+from report.charts import dot_whisker_svg
 from report.quotes import REGISTRY, bad_quotes, register_quote
 
 LIMITS_NOTE = (
@@ -65,13 +66,21 @@ def section_1_headline(headline_data: dict) -> str:
     return f"<h2>1. Headline</h2>{overall}<p>Range across extraction prompts and checker vendors: {html.escape(range_text)}</p>"
 
 
+def _contradicted_chart(shares_by_group: dict, by: str) -> str:
+    """The contradicted share of each group in a `breakdown()`-shaped dict, as a dot-and-whisker chart.
+    A group with no claims has no share to plot, so it is left out of the chart and stays in the table.
+    """
+    rows = [(group, s["contradicted"]["p"], s["contradicted"]["low"], s["contradicted"]["high"], s["n"]) for group, s in shares_by_group.items() if s["n"]]
+    return dot_whisker_svg(rows, f"Share of claims contradicted by {by}, with 95% intervals", f"contradicted-by-{by}")
+
+
 def section_2_by_model_month(headline_data: dict) -> str:
     """MVP.md Goal item 2: false-claim rate by model and by month."""
     return (
         "<h2>2. By model and month</h2>"
         "<p>Models ran in different periods, so model and time are confounded (MVP.md M5).</p>"
-        f"<h3>By model</h3>{_shares_table(headline_data['by_model'])}"
-        f"<h3>By month</h3>{_shares_table(headline_data['by_month'])}"
+        f"<h3>By model</h3>{_contradicted_chart(headline_data['by_model'], 'model')}{_shares_table(headline_data['by_model'])}"
+        f"<h3>By month</h3>{_contradicted_chart(headline_data['by_month'], 'month')}{_shares_table(headline_data['by_month'])}"
     )
 
 
