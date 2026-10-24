@@ -26,3 +26,9 @@ venv/
 # OS / editor
 .DS_Store
 .idea/
+
+# cloned reference repos (own .git, large, some unlicensed)
+temps_ideas/repos/
+
+# hf-mount mountpoint
+local/
