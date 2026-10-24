@@ -4,9 +4,12 @@ from llm.client import Completion, ModelClient, ModelSpec
 from spread.linker import (
     SpreadEdge,
     baseline_link,
+    compare_linkers,
     could_have_seen,
     model_link,
+    precision,
     relation_requests,
+    sample_for_hand_check,
     spread_share,
     spread_share_intervals,
 )
@@ -105,3 +108,23 @@ def test_spread_share_intervals_gives_counts_and_a_wilson_interval_per_verdict()
     assert (out["supported"]["k"], out["supported"]["n"]) == (0, 6)  # c5's edge is a correction, not a repeat
     assert out["contradicted"]["low"] < 0.5 < out["contradicted"]["high"]
     assert spread_share(verdicts, [edge("c0", "r1"), edge("c1", "r2")], "repeats") == {"contradicted": 0.5, "supported": 0.0}
+
+
+def test_compare_linkers_counts_overlap_by_claim_and_message_whatever_the_relation():
+    model = [edge("c1", "r1", "corrects"), edge("c1", "r2", "endorses")]
+    baseline = [edge("c1", "r1"), edge("c2", "r9")]
+    assert compare_linkers(model, baseline) == {"n_both": 1, "n_model_only": 1, "n_baseline_only": 1}
+
+
+def test_sample_for_hand_check_is_reproducible_and_ignores_input_order():
+    edges = [edge(f"c{i}", f"r{i}") for i in range(30)]
+    first = sample_for_hand_check(edges, 5, seed=1)
+    assert first == sample_for_hand_check(list(reversed(edges)), 5, seed=1)
+    assert len(first) == 5 and len(sample_for_hand_check(edges[:3], 5)) == 3
+
+
+def test_precision_scores_hand_judgements_with_an_interval():
+    judged = {edge("c1", "r1"): True, edge("c2", "r2"): True, edge("c3", "r3"): False, edge("c4", "r4"): True}
+    p = precision(judged)
+    assert (p["n_judged"], p["n_correct"], p["precision"]) == (4, 3, 0.75)
+    assert p["low"] < 0.75 < p["high"]
