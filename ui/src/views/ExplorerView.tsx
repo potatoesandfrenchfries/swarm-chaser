@@ -1,4 +1,5 @@
 import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
+import { Maximize } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Inspector } from '../components/Inspector.tsx';
 import { REL_TYPES, nodeKey, projectRun, projectionAt, type GNode, type Projection, type RelType } from '../model/graph.ts';
@@ -95,9 +96,9 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
       maxZoom: 3,
       boxSelectionEnabled: false,
       style: [
-        { selector: 'node', style: { label: 'data(name)', color: v('--ink'), 'font-family': 'Archivo Variable, sans-serif', 'font-size': 11, 'text-valign': 'bottom', 'text-margin-y': 6, 'text-outline-color': v('--bg'), 'text-outline-width': 3, 'background-color': '#2a2723', 'border-width': 1.5, 'border-color': v('--ink-muted'), width: 34, height: 34 } },
+        { selector: 'node', style: { label: 'data(name)', color: v('--ink'), 'font-family': 'Geist Variable, sans-serif', 'font-size': 11, 'text-valign': 'bottom', 'text-margin-y': 6, 'text-outline-color': v('--bg'), 'text-outline-width': 3, 'background-color': '#2a2723', 'border-width': 1.5, 'border-color': v('--ink-muted'), width: 34, height: 34 } },
         { selector: 'node[label="Actor"][kind="monitor"]', style: { shape: 'diamond', width: 40, height: 40, 'border-color': v('--ink') } },
-        { selector: 'node[label="Record"]', style: { shape: 'round-rectangle', width: 62, height: 24, 'font-family': 'JetBrains Mono Variable, monospace', 'font-size': 10, 'text-valign': 'center', 'text-margin-y': 0, 'background-color': '#24221f' } },
+        { selector: 'node[label="Record"]', style: { shape: 'round-rectangle', width: 62, height: 24, 'font-family': 'Geist Mono Variable, monospace', 'font-size': 10, 'text-valign': 'center', 'text-margin-y': 0, 'background-color': '#24221f' } },
         { selector: 'node[label="Record"][?planted]', style: { 'border-color': v('--claim') } },
         { selector: 'node[label="Claim"]', style: { shape: 'tag', width: 40, height: 22, 'background-color': v('--claim'), 'border-width': 0, color: v('--claim-ink'), 'text-valign': 'center', 'text-margin-y': 0, 'text-outline-width': 0, 'font-weight': 700 } },
         { selector: 'node[label="Event"]', style: { width: 14, height: 14, 'border-width': 0, 'font-size': 9, color: v('--ink-muted'), 'background-color': v('--ink-faint') } },
@@ -151,7 +152,7 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
     if (!inst) return;
     const els: ElementDefinition[] = [
       ...visible.nodes.map((n) => ({ group: 'nodes' as const, data: { id: n.key, name: n.label === 'Event' ? String(n.seq! + 1) : n.name, label: n.label, node: n, ...flat(n.props) }, position: lanePosition(n, run) })),
-      ...visible.edges.map((e) => ({ group: 'edges' as const, data: { id: e.key, source: e.from, target: e.to, type: e.type, ...flat(e.props) } })),
+      ...visible.edges.map((e, i) => ({ group: 'edges' as const, data: { id: `${e.key}-${i}`, source: e.from, target: e.to, type: e.type, ...flat(e.props) } })),
     ];
     inst.batch(() => {
       inst.elements().remove();
@@ -225,7 +226,7 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
             </select>
           </label>
           <button type="button" className="icon-btn" aria-label="Fit graph to view" onClick={() => cy.current?.fit(undefined, 50)}>
-            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 7V3h4M15 7V3h-4M3 11v4h4M15 11v4h-4" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
+            <Maximize size={16} strokeWidth={1.7} aria-hidden="true" />
           </button>
         </div>
         <div className="explorer-row">
@@ -242,11 +243,11 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
         <details className="rel-list">
           <summary>Relationship list ({visible.edges.length})</summary>
           <ul>
-            {visible.edges.map((e) => {
+            {visible.edges.map((e, i) => {
               const from = visible.nodes.find((n) => n.key === e.from);
               const to = visible.nodes.find((n) => n.key === e.to);
               return (
-                <li key={e.key}>
+                <li key={`${e.key}-${i}`}>
                   <button type="button" className="text-btn" onClick={() => from && onTap.current(from)}>
                     {from?.name}
                   </button>{' '}

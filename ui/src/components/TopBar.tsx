@@ -13,6 +13,10 @@ export function TopBar({ bundle }: { bundle: Bundle | null }) {
   const { state, dispatch } = useStore();
   const valid = state.bundles?.filter((b) => !b.problems.length) ?? [];
   const live = useLiveSources();
+  const showProvenance = Boolean(state.live) || bundle?.provenance !== 'synthetic';
+  const showReconnect = Boolean(state.live && (state.live.status === 'lost' || state.live.status === 'ended'));
+  const showSource = valid.length > 1 || live.sources.length > 0;
+  const showRun = Boolean(bundle && state.view !== 'home' && !state.live && bundle.runs.length > 1);
   return (
     <header className="topbar">
       <div className="topbar-left glass">
@@ -27,18 +31,20 @@ export function TopBar({ bundle }: { bundle: Bundle | null }) {
           ))}
         </nav>
       </div>
-      {bundle && (
+      {bundle && (showProvenance || showReconnect || showSource || showRun) && (
         <div className="topbar-right glass">
           {state.live ? (
             <LiveBadge provenance={bundle.provenance} status={state.live.status} steps={bundle.runs[0]?.events.length ?? 0} neo4j={state.live.neo4j} />
           ) : (
-            <span className={`provenance provenance--${bundle.provenance}`} title={PROVENANCE_NOTE[bundle.provenance]}>
-              <i aria-hidden="true" />
-              {PROVENANCE_WORD[bundle.provenance]}
-              <span className="provenance-note">{bundle.provenance === 'synthetic' ? 'not real research data' : bundle.source}</span>
-            </span>
+            showProvenance && (
+              <span className={`provenance provenance--${bundle.provenance}`} title={PROVENANCE_NOTE[bundle.provenance]}>
+                <i aria-hidden="true" />
+                {PROVENANCE_WORD[bundle.provenance]}
+                <span className="provenance-note">{bundle.source}</span>
+              </span>
+            )
           )}
-          {state.live && (state.live.status === 'lost' || state.live.status === 'ended') && (
+          {showReconnect && (
             <>
               <button type="button" className="chip-btn" onClick={() => dispatch({ type: 'open-live', id: state.live!.id })}>
                 Reconnect
@@ -50,7 +56,7 @@ export function TopBar({ bundle }: { bundle: Bundle | null }) {
               )}
             </>
           )}
-          {(valid.length > 1 || live.sources.length > 0) && (
+          {showSource && (
             <label className="picker">
               <span className="sr-only">Source</span>
               <select
@@ -63,7 +69,7 @@ export function TopBar({ bundle }: { bundle: Bundle | null }) {
               >
                 {valid.map((b) => (
                   <option key={b.id} value={`bundle:${b.id}`}>
-                    {b.title} ({PROVENANCE_WORD[b.provenance].toLowerCase()})
+                    {b.title}
                   </option>
                 ))}
                 {live.sources.map((l) => (
@@ -75,7 +81,7 @@ export function TopBar({ bundle }: { bundle: Bundle | null }) {
               </select>
             </label>
           )}
-          {state.view !== 'home' && !state.live && bundle.runs.length > 1 && (
+          {showRun && (
             <label className="picker">
               <span className="sr-only">Run</span>
               <select value={state.runId ?? ''} onChange={(e) => dispatch({ type: 'run', runId: e.target.value })}>

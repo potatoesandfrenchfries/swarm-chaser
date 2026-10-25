@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
 import { chaptersOf } from '../model/replay.ts';
 import type { Run } from '../model/types.ts';
 import { SPEEDS, useStore } from '../state/store.tsx';
@@ -47,20 +48,16 @@ export function Transport({ run, focusClaim }: { run: Run; focusClaim: string | 
     <section className="dock glass" aria-label="Replay controls">
       <div className="dock-buttons">
         <button type="button" className="icon-btn" onClick={() => dispatch({ type: 'seek', cursor: -1 })} aria-label="Restart from the beginning" title="Restart (Home)">
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 9a5 5 0 1 0 1.6-3.7M4 3v3h3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <RotateCcw size={17} strokeWidth={1.7} aria-hidden="true" />
         </button>
         <button type="button" className="icon-btn" onClick={() => dispatch({ type: 'step', delta: -1 })} disabled={state.cursor < 0} aria-label="Previous step" title="Previous step (←)">
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M13 4L7 9L13 14M5 4V14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <SkipBack size={17} strokeWidth={1.7} aria-hidden="true" />
         </button>
         <button type="button" className={`play-btn ${state.playing ? 'is-playing' : ''}`} onClick={() => dispatch({ type: 'toggle' })} aria-label={state.playing ? 'Pause' : state.cursor >= last ? 'Replay from the start' : 'Play'} title="Play or pause (Space)">
-          {state.playing ? (
-            <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="4" width="3.5" height="12" rx="1" fill="currentColor" /><rect x="11.5" y="4" width="3.5" height="12" rx="1" fill="currentColor" /></svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.5L16.5 10L6 16.5Z" fill="currentColor" strokeLinejoin="round" /></svg>
-          )}
+          {state.playing ? <Pause size={19} fill="currentColor" strokeWidth={0} aria-hidden="true" /> : <Play size={19} fill="currentColor" strokeWidth={0} aria-hidden="true" />}
         </button>
         <button type="button" className="icon-btn" onClick={() => dispatch({ type: 'step', delta: 1 })} disabled={state.cursor >= last} aria-label="Next step" title="Next step (→)">
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M5 4L11 9L5 14M13 4V14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <SkipForward size={17} strokeWidth={1.7} aria-hidden="true" />
         </button>
         <label className="speed">
           <span className="sr-only">Playback speed</span>

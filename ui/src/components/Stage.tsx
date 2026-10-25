@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Box as LucideBox, FlaskConical, Scale } from 'lucide-react';
 import { HUB_SEAT, curveBetween, layoutRun, pointOn, recordWidth, type Box, type Curve, type Placed } from '../lib/layout.ts';
 import { EVENT_WORD, monogram, vendorOf } from '../lib/words.ts';
 import { channelOf, deriveState, type ActorState, type Channel, type EdgeState, type ReplayState } from '../model/replay.ts';
@@ -285,9 +286,20 @@ function EdgePath({ edge, curve, age, focusClaim, run }: { edge: EdgeState; curv
 
 function PulseHead({ curve, t, color }: { curve: Curve; t: number; color: string }) {
   const pt = pointOn(curve, t);
+  const wake = Math.min(curve.length * 0.22, 78);
   return (
     <g>
-      <circle cx={pt.x} cy={pt.y} r="6.5" fill={color} stroke="var(--bg)" strokeWidth="2.5" />
+      <path
+        d={curve.d}
+        fill="none"
+        stroke={color}
+        strokeWidth="6"
+        strokeLinecap="round"
+        opacity="0.28"
+        style={{ strokeDasharray: `${wake} ${curve.length}`, strokeDashoffset: wake - t * curve.length }}
+      />
+      <circle cx={pt.x} cy={pt.y} r="11" fill={color} opacity="0.18" />
+      <circle cx={pt.x} cy={pt.y} r="5.5" fill={color} stroke="var(--bg)" strokeWidth="2" />
     </g>
   );
 }
@@ -332,30 +344,14 @@ function actorWords(st: ActorState, checking: boolean): string {
   return w.join(', ');
 }
 
-/** The Judge's mark: a pair of scales. */
 function JudgeIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 4v16M8 20h8M5 7h14M12 4l-1.2 3M12 4l1.2 3" />
-      <path d="M5 7l-2.6 6a2.6 2.6 0 0 0 5.2 0L5 7zM19 7l-2.6 6a2.6 2.6 0 0 0 5.2 0L19 7z" />
-    </svg>
-  );
+  return <Scale size={22} strokeWidth={1.7} aria-hidden="true" />;
 }
 
 function SandboxIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-      <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
-      <path d="M3 8l9 5 9-5M12 13v8" />
-    </svg>
-  );
+  return <LucideBox size={15} strokeWidth={1.8} aria-hidden="true" />;
 }
 
 function HoneypotIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
-      <path d="M7 4h10M8 4v3c-2.5 1.5-4 4-4 7 0 4 3.6 6 8 6s8-2 8-6c0-3-1.5-5.5-4-7V4" />
-      <path d="M8 12c1.5 1 6.5 1 8 0" />
-    </svg>
-  );
+  return <FlaskConical size={15} strokeWidth={1.8} aria-hidden="true" />;
 }

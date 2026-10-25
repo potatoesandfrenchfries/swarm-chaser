@@ -1,4 +1,6 @@
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import path from 'node:path';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { apiMiddleware } from './server/api.ts';
 
@@ -19,7 +21,8 @@ function api(env: Record<string, string>): Plugin {
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, import.meta.dirname, ''), ...process.env } as Record<string, string>;
   return {
-    plugins: [react(), api(env)],
+    plugins: [react(), tailwindcss(), api(env)],
+    resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
     build: { target: 'es2022', chunkSizeWarningLimit: 900 },
     // Unit tests only; e2e/ belongs to Playwright.
     test: { include: ['src/**/*.test.ts', 'server/**/*.test.ts'] },

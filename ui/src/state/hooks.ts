@@ -93,8 +93,12 @@ export function useCountUp(target: number, reduced: boolean, ms = 420): number {
 }
 
 export function easeTravel(t: number): number {
-  // Matches --ease-travel: cubic-bezier(0.45, 0, 0.2, 1), approximated as smootherstep with a firmer landing.
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  // Soft launch blended into a long quintic settle, so the pulse glides onto the node.
+  const x = Math.min(1, Math.max(0, t));
+  const launch = x * x * (3 - 2 * x);
+  const settle = 1 - Math.pow(1 - x, 3.6);
+  const mix = x * x;
+  return launch * (1 - mix) + settle * mix;
 }
 
 export function useElementSize<T extends HTMLElement>() {

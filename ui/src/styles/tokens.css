@@ -36,10 +36,16 @@
   --unverifiable: #a39d91;
   --focus: #ede9e0;
 
-  /* type */
-  --font-ui: 'Archivo Variable', Archivo, system-ui, sans-serif;
-  --font-record: 'Newsreader Variable', Newsreader, Georgia, serif;
-  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+  /* landing brief. three colours only. story, compare and data keep the dark tokens above. */
+  --paper: #faf9f5;
+  --paper-ink: #111111;
+  --paper-rule: #e4e2dc;
+  --signal: #d9381e;
+
+  /* type: Geist everywhere, no cursive/italics */
+  --font-ui: 'Geist Variable', Geist, system-ui, sans-serif;
+  --font-record: 'Geist Variable', Geist, system-ui, sans-serif;
+  --font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, monospace;
 
   /* space */
   --s1: 4px;
@@ -58,12 +64,12 @@
   --radius-control: 10px;
 
   /* motion */
-  --dur-feedback: 120ms;
-  --dur-reveal: 240ms;
+  --dur-feedback: 140ms;
+  --dur-reveal: 320ms;
   --dur-travel: 950ms;
-  --ease-travel: cubic-bezier(0.45, 0, 0.2, 1);
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ease-travel: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.15);
 }
 
 @media (max-width: 700px) {
