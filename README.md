@@ -160,3 +160,5 @@ npm run e2e                   # Playwright, using the installed Google Chrome
 On every pull request, CI runs ruff, checks that `uv.lock` is current, runs pytest on Python 3.11
 to 3.13 with a 95% coverage floor, and imports every declared dependency. A single job named
 `CI passed` gates merging.
+
+**NOTE:** AI agents were used in the development of this project
