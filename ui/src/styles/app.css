@@ -736,31 +736,35 @@ mark {
 #problem .acad-lead { margin-bottom: 0; }
 
 .acad-system {
-  margin-bottom: 12px; padding: 32px; border-radius: 24px; border: 1px solid var(--line);
+  margin-bottom: 12px; padding: 32px; border-radius: var(--radius-panel); border: 1px solid var(--line);
   background-color: #fff;
   background-image:
-    linear-gradient(to right, #f0f0f3 1px, transparent 1px),
-    linear-gradient(to bottom, #f0f0f3 1px, transparent 1px);
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
   background-size: 20px 20px;
 }
+/* Drawn in the tiles' language: grey and ink fills instead of outlines, white cards lifted by one soft shadow,
+   hairline wires, blue only for what the white-box reads and the verdict, red only for the block. */
 .acad-diagram { display: block; width: 100%; height: auto; }
-.acad-diagram .sys-env { fill: #eceef2; stroke: var(--ink); stroke-width: 1.5; }
-.acad-diagram .sys-label { font-size: 15px; fill: var(--ink); }
-.acad-diagram .sys-focus { fill: #fff; stroke: var(--ink); stroke-width: 1.5; }
-.acad-diagram .sys-agent { fill: #fdf6c3; stroke: var(--ink); stroke-width: 1.5; }
-.acad-diagram .sys-agent-label { font-size: 14px; fill: var(--ink); }
-.acad-diagram .sys-black { fill: var(--ink); }
+.acad-diagram text { letter-spacing: -0.01em; }
+.acad-diagram .sys-env { fill: var(--bg-deep); stroke: var(--line); stroke-width: 1; }
+.acad-diagram .sys-label { font-size: 14px; font-weight: 500; fill: var(--ink-muted); }
+.acad-diagram .sys-focus { fill: var(--correction-soft); stroke: var(--correction); stroke-width: 1.25; stroke-dasharray: 4 4; }
+.acad-diagram .sys-agent { fill: #fdf3c2; stroke: #e2cf85; stroke-width: 1; filter: url(#sys-lift); }
+.acad-diagram .sys-agent-label { font-size: 13px; font-weight: 500; fill: var(--ink); }
+.acad-diagram .sys-black { fill: var(--ink); filter: url(#sys-lift); }
 .acad-diagram .sys-black-label { font-size: 16px; font-weight: 600; fill: #fff; }
-.acad-diagram .sys-white { fill: #fff; stroke: var(--ink); stroke-width: 1.5; }
+.acad-diagram .sys-white { fill: #fff; stroke: var(--line); stroke-width: 1; filter: url(#sys-lift); }
 .acad-diagram .sys-white-label { font-size: 16px; font-weight: 600; fill: var(--ink); }
 .acad-diagram .sys-cap { font-size: 13px; fill: var(--ink-muted); }
-.acad-diagram .sys-wire { stroke: var(--ink); stroke-width: 1.5; }
+.acad-diagram .sys-cap--mono { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0; }
+.acad-diagram .sys-wire { stroke: var(--line-strong); stroke-width: 1.25; stroke-linejoin: round; }
 .acad-diagram .sys-flow {
-  stroke: var(--correction); stroke-width: 3; stroke-dasharray: 0.12 0.88; animation: sys-flow 1.6s linear infinite;
+  stroke: var(--correction); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 0.12 0.88; animation: sys-flow 1.6s linear infinite;
 }
-.acad-diagram .sys-verdict { fill: #fff; stroke: var(--correction); stroke-width: 2; }
+.acad-diagram .sys-verdict { fill: #fff; stroke: var(--correction); stroke-width: 1.5; filter: url(#sys-lift); }
 .acad-diagram .sys-verdict-label { font-size: 16px; font-weight: 600; fill: var(--correction); }
-.acad-diagram .sys-block circle { fill: var(--contradicted); }
+.acad-diagram .sys-block circle { fill: var(--contradicted); stroke: #fff; stroke-width: 2; }
 .acad-diagram .sys-block path { stroke: #fff; stroke-width: 2; stroke-linecap: round; }
 .acad-diagram .sys-block { transform-box: fill-box; transform-origin: center; animation: acad-pop 4s ease-in-out infinite; }
 @keyframes sys-flow { to { stroke-dashoffset: -1; } }

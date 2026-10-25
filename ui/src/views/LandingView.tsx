@@ -94,9 +94,14 @@ function Count({ value, prefix = '', suffix = '', decimals = 0 }: Stat) {
 function SystemDiagram() {
   return (
     <svg viewBox="0 0 720 380" className="acad-diagram" role="img" aria-label="Black-box monitor reads agents' messages and tool calls; white-box monitor reads one agent's activations; both feed a verdict that allows or blocks the action">
-      <rect x="250" y="130" width="250" height="220" rx="12" className="sys-env" />
+      <defs>
+        <filter id="sys-lift" x="-20%" y="-20%" width="140%" height="160%">
+          <feDropShadow dx="0" dy="8" stdDeviation="9" floodColor="#141413" floodOpacity="0.1" />
+        </filter>
+      </defs>
+      <rect x="250" y="130" width="250" height="220" rx="20" className="sys-env" />
       <text x="375" y="158" textAnchor="middle" className="sys-label">Agent environment</text>
-      <rect x="278" y="186" width="92" height="92" rx="10" className="sys-focus" />
+      <rect x="278" y="186" width="92" height="92" rx="16" className="sys-focus" />
       {[[324, 232], [440, 220], [384, 304]].map(([x, y]) => (
         <g key={x}>
           <circle cx={x} cy={y} r="30" className="sys-agent" />
@@ -104,21 +109,21 @@ function SystemDiagram() {
         </g>
       ))}
 
-      <rect x="310" y="20" width="130" height="56" rx="8" className="sys-black" />
+      <rect x="310" y="20" width="130" height="56" rx="14" className="sys-black" />
       <text x="375" y="53" textAnchor="middle" className="sys-black-label">Black-box</text>
       <line x1="375" y1="76" x2="375" y2="130" className="sys-wire" />
       <line x1="375" y1="130" x2="375" y2="76" className="sys-flow" pathLength={1} />
-      <text x="388" y="108" className="sys-cap">messages, tool calls</text>
+      <text x="388" y="107" className="sys-cap sys-cap--mono">messages, tool calls</text>
 
-      <rect x="20" y="200" width="150" height="64" rx="8" className="sys-white" />
+      <rect x="20" y="200" width="150" height="64" rx="14" className="sys-white" />
       <text x="95" y="228" textAnchor="middle" className="sys-white-label">White-box</text>
       <text x="95" y="248" textAnchor="middle" className="sys-cap">activations</text>
       <line x1="278" y1="232" x2="170" y2="232" className="sys-wire" />
       <line x1="278" y1="232" x2="170" y2="232" className="sys-flow" pathLength={1} />
 
-      <path d="M440 48 L600 48 L600 190" className="sys-wire" fill="none" />
-      <path d="M95 264 L95 360 L600 360 L600 262" className="sys-wire" fill="none" />
-      <rect x="548" y="190" width="104" height="72" rx="10" className="sys-verdict" />
+      <path d="M440 48 H586 Q600 48 600 62 V190" className="sys-wire" fill="none" />
+      <path d="M95 264 V346 Q95 360 109 360 H586 Q600 360 600 346 V262" className="sys-wire" fill="none" />
+      <rect x="548" y="190" width="104" height="72" rx="14" className="sys-verdict" />
       <text x="600" y="222" textAnchor="middle" className="sys-verdict-label">Verdict</text>
       <text x="600" y="244" textAnchor="middle" className="sys-cap">allow · block</text>
       <g className="sys-block">
