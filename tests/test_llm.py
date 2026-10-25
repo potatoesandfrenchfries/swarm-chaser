@@ -277,3 +277,54 @@ def test_openrouter_still_points_at_its_own_endpoint(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "placeholder")
     load_vendors().make_transport("openrouter")
     assert built == {"api_key": "placeholder", "base_url": "https://openrouter.ai/api/v1"}
+
+
+def fake_gemini(monkeypatch, usage, text="ok"):
+    """A stand-in for google-genai whose one call returns `text` and `usage`."""
+    seen = {}
+
+    class Models:
+        def generate_content(self, **kw):
+            seen.update(kw)
+            return types.SimpleNamespace(text=text, usage_metadata=usage)
+
+    types_mod = fake_module("google.genai.types", GenerateContentConfig=lambda **kw: kw)
+    genai = fake_module("google.genai", Client=lambda api_key: types.SimpleNamespace(models=Models()), types=types_mod)
+    monkeypatch.setitem(sys.modules, "google", fake_module("google", genai=genai))
+    monkeypatch.setitem(sys.modules, "google.genai", genai)
+    monkeypatch.setitem(sys.modules, "google.genai.types", types_mod)
+    monkeypatch.setenv("GEMINI_API_KEY", "placeholder")
+    pytest.importorskip("tenacity")
+    pytest.importorskip("dotenv")
+    return load_vendors().make_transport("gemini")(ModelSpec("gemini", "m", temperature=None, max_tokens=50), "sys", "user"), seen
+
+
+def test_gemini_thinking_tokens_count_as_output_because_they_are_billed_as_output(monkeypatch):
+    usage = types.SimpleNamespace(prompt_token_count=100, candidates_token_count=112, thoughts_token_count=900)
+    out, seen = fake_gemini(monkeypatch, usage)
+    assert out == Completion("ok", 100, 1012)
+    assert seen["contents"] == "user" and seen["config"]["system_instruction"] == "sys" and seen["config"]["max_output_tokens"] == 50
+
+
+def test_gemini_counts_that_are_missing_are_zero_not_a_crash(monkeypatch):
+    usage = types.SimpleNamespace(prompt_token_count=None, candidates_token_count=None, thoughts_token_count=None)
+    out, _ = fake_gemini(monkeypatch, usage, text=None)
+    assert out == Completion("", 0, 0)
+
+
+def test_gemini_reply_with_no_usage_at_all_is_zero_tokens(monkeypatch):
+    out, _ = fake_gemini(monkeypatch, None)
+    assert out == Completion("ok", 0, 0)
+
+
+def test_gemini_thinking_makes_the_budget_count_the_real_cost(monkeypatch, tmp_path):
+    """The point of the fix: a thinking-heavy answer must show up in the total spend."""
+    from llm.budget import spent_usd
+
+    usage = types.SimpleNamespace(prompt_token_count=0, candidates_token_count=0, thoughts_token_count=1_000_000)
+    reply, _ = fake_gemini(monkeypatch, usage)  # what the Gemini transport returned for that usage
+    spec = ModelSpec("gemini", "m", temperature=None, max_tokens=50, usd_per_mtok_in=1.0, usd_per_mtok_out=4.0)
+    client = ModelClient(spec, lambda s, system, user: reply, cache_path=tmp_path / "c.sqlite", mode="live")
+    client.complete("sys", "user")
+    client.close()
+    assert spent_usd(tmp_path / "c.sqlite", [spec]) == pytest.approx(4.0)

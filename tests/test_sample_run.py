@@ -31,9 +31,12 @@ def env(tmp_path):
     budget = tmp_path / "budget.toml"
     budget.write_text("[spend]\ncap_gbp = 3.0\nusd_per_gbp = 1.25\n")
     calls = []
+    fail = set()  # vendors whose transport should raise, like a rate limit or an oversize request
 
     def transports(vendor):
         def call(spec, system, user):
+            if vendor in fail:
+                raise RuntimeError(f"{vendor}: 413 request too large")
             calls.append((vendor, "extract" if "claims" in system and "verdict" not in system else "check"))
             return Completion(VERDICT if "verdict" in system else EXTRACTED, 100, 50)
 
@@ -43,7 +46,7 @@ def env(tmp_path):
         args = [*argv, "--db", str(db), "--out", str(tmp_path / "out"), "--cache", str(tmp_path / "llm.sqlite"), "--config", str(kw.get("config", budget))]
         return sample_run.main(args, transports)
 
-    return type("Env", (), {"run": staticmethod(run), "calls": calls, "out": tmp_path / "out", "tmp": tmp_path})
+    return type("Env", (), {"run": staticmethod(run), "calls": calls, "fail": fail, "out": tmp_path / "out", "tmp": tmp_path})
 
 
 def test_a_dry_run_sends_nothing_and_says_so(env, capsys):
@@ -137,3 +140,100 @@ def test_publish_adds_hand_written_verdicts_under_their_own_judge(env, capsys):
     db = env.tmp / "sample.sqlite"
     assert env.run("publish", "--export", str(write_export(env.tmp / "hf")), "--sample-db", str(db)) == 0
     assert sqlite3.connect(db).execute("SELECT DISTINCT judge FROM verdicts").fetchall() == [("manual/someone",)]
+
+
+def test_a_checker_that_fails_keeps_the_other_checkers_verdicts_and_says_why(env, capsys):
+    """Groq's 8,000-token-a-minute limit made checker B raise on every request. Checker A's finished verdicts were lost."""
+    env.run("extract", "--chunks", "1", "--live")
+    capsys.readouterr()
+    env.fail.add("groq")
+    assert env.run("check", "--live") == 1  # non-zero: a checker did not finish
+    verdicts = json.loads((env.out / "verdicts.json").read_text())
+    assert {v["judge"] for v in verdicts} == {"anthropic/claude-haiku-5-5"} and len(verdicts) == 2
+    status = json.loads((env.out / "check_status.json").read_text())
+    assert status["claims"] == 2
+    assert status["checkers"]["anthropic/claude-haiku-5-5"] == {"claims_judged": 2, "no_usable_reply": 0, "error": None}
+    stopped = status["checkers"]["groq/openai/gpt-oss-120b"]
+    assert stopped["claims_judged"] == 0 and "413 request too large" in stopped["error"]
+    assert "STOPPED" in capsys.readouterr().err
+
+
+def test_a_checker_that_fails_part_way_keeps_the_verdicts_it_made(env, capsys):
+    env.run("extract", "--chunks", "1", "--live")
+    capsys.readouterr()
+    real = sample_run.run_checks
+    seen = {"n": 0}
+
+    def flaky(claims, rows, caller, judge_name, failed=None):
+        if "groq" in judge_name:
+            seen["n"] += 1
+            if seen["n"] == 2:
+                raise RuntimeError("429 rate limited")
+        return real(claims, rows, caller, judge_name, failed=failed)
+
+    sample_run.run_checks = flaky
+    try:
+        assert env.run("check", "--live") == 1
+    finally:
+        sample_run.run_checks = real
+    status = json.loads((env.out / "check_status.json").read_text())["checkers"]["groq/openai/gpt-oss-120b"]
+    assert status["claims_judged"] == 1 and "429" in status["error"]
+    assert sum(v["judge"].startswith("groq") for v in json.loads((env.out / "verdicts.json").read_text())) == 1
+
+
+# --- headline stage and the join behind it -----------------------------------------------------------
+
+
+def test_verdict_records_take_model_time_and_extractor_from_the_claim_and_the_judge_from_the_verdict():
+    from report.headline import verdict_records
+
+    claims = [{"claim_id": "c1", "model": "gpt-x", "ts": "2025-06-26T10:00:00Z", "extractor": "e2"}]
+    verdicts = [{"claim_id": "c1", "verdict": "supported", "judge": "j1"}]
+    records, report = verdict_records(claims, verdicts)
+    assert records == [{"claim_id": "c1", "model": "gpt-x", "ts": "2025-06-26T10:00:00Z", "verdict": "supported", "extractor": "e2", "judge": "j1"}]
+    assert report == {"orphan_verdicts": 0, "left_out_by_judge": 0}
+
+
+def test_a_verdict_with_no_claim_is_counted_not_dropped_silently_and_judges_can_be_filtered():
+    from report.headline import verdict_records
+
+    claims = [{"claim_id": "c1", "model": "m", "ts": "2025-06-26T10:00:00Z", "extractor": "e1"}]
+    verdicts = [
+        {"claim_id": "c1", "verdict": "supported", "judge": "vendor"},
+        {"claim_id": "c1", "verdict": "contradicted", "judge": "manual/x"},
+        {"claim_id": "ghost", "verdict": "supported", "judge": "vendor"},
+    ]
+    records, report = verdict_records(claims, verdicts, judges={"vendor"})
+    assert [r["judge"] for r in records] == ["vendor"] and report == {"orphan_verdicts": 1, "left_out_by_judge": 1}
+
+
+def test_headline_needs_the_extract_and_check_outputs_first(env, capsys):
+    assert env.run("headline") == 2
+    assert "extract and check stages first" in capsys.readouterr().err
+
+
+def test_headline_counts_each_claim_once_per_live_vendor_and_not_the_manual_verdicts(env, capsys):
+    env.run("extract", "--chunks", "1", "--live")
+    env.run("check", "--live")
+    manual = [{"claim_id": c["claim_id"], "verdict": "contradicted", "judge": "manual/claude-sonnet-5-5", "evidence": [], "confidence": 0.5, "quote": c["quote"]}
+              for c in json.loads((env.out / "claims.json").read_text())]
+    (env.out / "verdicts_manual.json").write_text(json.dumps(manual))
+    capsys.readouterr()
+    assert env.run("headline") == 0
+    text = capsys.readouterr().out
+    result = json.loads((env.out / "headline.json").read_text())
+    assert result["overall"]["n"] == 4 and result["overall"]["supported"]["k"] == 4  # 2 claims x 2 vendors; the manual "contradicted" are left out
+    assert result["sample"]["includes_manual"] is False and result["sample"]["left_out_by_judge"] == 0
+    assert "n=4 is small" in text
+    assert env.run("headline", "--include-manual") == 0
+    with_manual = json.loads((env.out / "headline.json").read_text())
+    assert with_manual["overall"]["n"] == 6 and with_manual["overall"]["contradicted"]["k"] == 2
+
+
+def test_the_headline_file_is_valid_json_with_no_nan_or_tuple_keys(env):
+    env.run("extract", "--chunks", "1", "--live")
+    env.run("check", "--live")
+    env.run("headline")
+    raw = (env.out / "headline.json").read_text()
+    assert "NaN" not in raw
+    assert all("|" in key for key in json.loads(raw)["sensitivity"]["per_setting"])  # "e1|judge", not a tuple

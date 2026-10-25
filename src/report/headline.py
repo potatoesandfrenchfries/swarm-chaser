@@ -67,6 +67,29 @@ def sensitivity(records):
     return {"per_setting": per_setting, "range": spread}
 
 
+def verdict_records(claims, verdicts, judges=None):
+    """Join each verdict to its claim, giving the records `headline` takes. Both arguments are lists of dicts
+    (the sample's claims.json and verdicts.json). The model and time are the claim's (who said it, when), the
+    extractor is the claim's, and the judge is the verdict's.
+
+    `judges`, if given, keeps only verdicts from those judges. Use it to leave out hand-written verdicts that
+    cover the same claims as a vendor, which would otherwise count a claim twice. Returns (records, report); the
+    report counts verdicts with no matching claim and verdicts left out by `judges`, so nothing vanishes silently.
+    """
+    by_id = {c["claim_id"]: c for c in claims}
+    records, report = [], {"orphan_verdicts": 0, "left_out_by_judge": 0}
+    for v in verdicts:
+        if judges is not None and v["judge"] not in judges:
+            report["left_out_by_judge"] += 1
+            continue
+        claim = by_id.get(v["claim_id"])
+        if claim is None:
+            report["orphan_verdicts"] += 1
+            continue
+        records.append({"claim_id": v["claim_id"], "model": claim["model"], "ts": claim["ts"], "verdict": v["verdict"], "extractor": claim["extractor"], "judge": v["judge"]})
+    return records, report
+
+
 def headline(records):
     """Everything the results page needs for items 1 and 2 of the MVP goal."""
     return {

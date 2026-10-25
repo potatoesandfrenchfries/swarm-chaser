@@ -102,7 +102,11 @@ def gemini_transport() -> Transport:
         config = types.GenerateContentConfig(system_instruction=system, max_output_tokens=spec.max_tokens, temperature=spec.temperature)
         resp = client.models.generate_content(model=spec.model, contents=user, config=config)
         usage = resp.usage_metadata
-        return Completion(resp.text or "", (usage.prompt_token_count or 0) if usage else 0, (usage.candidates_token_count or 0) if usage else 0)
+        if usage is None:
+            return Completion(resp.text or "", 0, 0)
+        # Thinking is billed as output but the API reports it apart from the answer's own tokens
+        # (`thoughts_token_count`), so leaving it out undercounts the spend (STRESSTEST.md).
+        return Completion(resp.text or "", usage.prompt_token_count or 0, (usage.candidates_token_count or 0) + (usage.thoughts_token_count or 0))
 
     return call
 

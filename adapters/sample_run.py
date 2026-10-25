@@ -27,6 +27,7 @@ from ingest.handoff import SAMPLE_DB, build_sample
 from ingest.store import connect, read_rows
 from llm.budget import CONFIG, remaining_usd, total_cap_usd
 from llm.client import DEFAULT_CACHE, ModelClient, ModelSpec
+from report.headline import headline, verdict_records
 
 EXTRACT_OUT_TOKENS = 6000  # per call, thinking included: Haiku 5.5 averaged 5.3k output tokens in the first sample
 CHECK_OUT_TOKENS = 6000  # thinking is counted as output by both checkers; a first guess until a check run is measured
@@ -138,22 +139,32 @@ def check_stage(args, transports: Transports) -> int:
         print("refused: the estimate does not fit in what is left of the budget", file=sys.stderr)
         return 1
     verdicts: list[Verdict] = []
+    status: dict = {}
     for name, spec in specs.items():
         client = _client(spec, args, transports)  # asked again, so this one sees what the previous checker spent
+        got: list[Verdict] = []
         bad: list = []
-        got = run_checks(claims, rows, client.as_caller(), judge_name=spec.label, failed=bad)
+        try:
+            for claim in claims:  # one at a time, so the verdicts already made survive a failure part-way through
+                got += run_checks([claim], rows, client.as_caller(), judge_name=spec.label, failed=bad)
+            status[spec.label] = {"claims_judged": len(got), "no_usable_reply": len(bad), "error": None}
+        except Exception as problem:  # a rate limit or an oversize request would repeat for every claim, so stop this checker
+            status[spec.label] = {"claims_judged": len(got), "no_usable_reply": len(bad), "error": f"{type(problem).__name__}: {str(problem)[:300]}"}
+            print(f"check {name} ({spec.label}) STOPPED after {len(got)} of {len(claims)} claims: {status[spec.label]['error']}", file=sys.stderr)
         verdicts += got
         counts = {v: sum(x.verdict == v for x in got) for v in ("supported", "contradicted", "unverifiable")}
         print(f"check {name} ({spec.label}): {counts}, {len(bad)} claims with no usable reply; spent ${client.spent_usd:.4f}")
+        client.close()
     quotes = {c.claim_id: c.quote for c in claims}
     _save(args.out, "verdicts.json", [{**asdict(v), "quote": quotes[v.claim_id]} for v in verdicts])
+    _save(args.out, "check_status.json", {"claims": len(claims), "checkers": status})
     by_claim: dict = {}
     for v in verdicts:
         by_claim.setdefault(v.claim_id, {})[v.judge] = v.verdict
     both = [pair for pair in by_claim.values() if len(pair) == len(specs)]
     agree = sum(len(set(pair.values())) == 1 for pair in both)
     print(f"{len(both)} claims judged by both; they agree on {agree}")
-    return 0
+    return 0 if all(x["error"] is None for x in status.values()) else 1
 
 
 def publish_stage(args, transports: Transports) -> int:
@@ -176,11 +187,56 @@ def publish_stage(args, transports: Transports) -> int:
     return 0
 
 
+def _plain(value):
+    """JSON-safe: tuple keys become "a|b" strings and NaN (an empty group's interval) becomes null."""
+    if isinstance(value, dict):
+        return {("|".join(map(str, k)) if isinstance(k, tuple) else k): _plain(v) for k, v in value.items()}
+    if isinstance(value, float) and value != value:
+        return None
+    return value
+
+
+def headline_stage(args, transports: Transports) -> int:
+    """Shares of supported, contradicted and unverifiable (M5.2) over the sample's verdicts, with Wilson intervals.
+    Only the live vendors' verdicts count unless `--include-manual`: a hand-written verdict covers claims a vendor
+    also judged, so counting both would count a claim twice."""
+    claims_path, verdicts_path = args.out / "claims.json", args.out / "verdicts.json"
+    if not (claims_path.exists() and verdicts_path.exists()):
+        print(f"need {claims_path} and {verdicts_path}; run the extract and check stages first", file=sys.stderr)
+        return 2
+    claims = json.loads(claims_path.read_text(encoding="utf-8"))
+    verdicts = json.loads(verdicts_path.read_text(encoding="utf-8"))
+    vendors = {spec.label for spec in checker_specs().values()}
+    manual = args.out / "verdicts_manual.json"
+    if args.include_manual and manual.exists():
+        verdicts += json.loads(manual.read_text(encoding="utf-8"))
+    judges = None if args.include_manual else vendors
+    records, report = verdict_records(claims, verdicts, judges)
+    if not records:
+        print("no verdicts from a live checker to count", file=sys.stderr)
+        return 1
+    result = headline(records)
+    result["sample"] = {**report, "records": len(records), "claims": len({r["claim_id"] for r in records}), "judges": sorted({r["judge"] for r in records}), "includes_manual": args.include_manual}
+    _save(args.out, "headline.json", _plain(result))
+    overall = result["overall"]
+    print(f"{overall['n']} verdicts on {result['sample']['claims']} claims from {', '.join(result['sample']['judges'])}")
+    for v in ("supported", "contradicted", "unverifiable"):
+        s = overall[v]
+        print(f"  {v:<13} {s['k']:>3}/{overall['n']}  {s['p']:.0%}  (95% interval {s['low']:.0%} to {s['high']:.0%})")
+    for label, groups in (("by model", result["by_model"]), ("by month", result["by_month"])):
+        print(f"{label}: " + ", ".join(f"{name} n={group['n']}" for name, group in groups.items()))
+    if overall["n"] < 30:
+        print(f"note: n={overall['n']} is small; the intervals are wide and the groups above hold a handful each")
+    print(f"wrote {args.out / 'headline.json'}")
+    return 0
+
+
 def main(argv: list[str] | None = None, transports: Transports | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("stage", choices=["extract", "check", "publish"])
+    parser.add_argument("stage", choices=["extract", "check", "publish", "headline"])
     parser.add_argument("--chunks", type=int, default=10)
     parser.add_argument("--limit", type=int, default=None, help="check only N claims, spread evenly through the file")
+    parser.add_argument("--include-manual", action="store_true", help="headline: also count hand-written verdicts (verdicts_manual.json)")
     parser.add_argument("--live", action="store_true", help="send requests and spend money; without it, estimate only")
     parser.add_argument("--db", type=Path, default=Path("local/slice.sqlite"))
     parser.add_argument("--out", type=Path, default=Path("local/sample_run"))
@@ -193,7 +249,7 @@ def main(argv: list[str] | None = None, transports: Transports | None = None) ->
         from adapters.vendors import make_transport
 
         transports = make_transport
-    return {"extract": extract_stage, "check": check_stage, "publish": publish_stage}[args.stage](args, transports)
+    return {"extract": extract_stage, "check": check_stage, "publish": publish_stage, "headline": headline_stage}[args.stage](args, transports)
 
 
 if __name__ == "__main__":
