@@ -3,7 +3,8 @@ import { join, resolve } from 'node:path';
 import type { Bundle, Provenance } from '../src/model/types.ts';
 import { validateBundle } from '../src/model/validate.ts';
 
-const UI_ROOT = resolve(import.meta.dirname, '..');
+// Vercel bundles this file into one function, so a path beside the source no longer reaches data/synthetic. The files are copied to the deployment root, which is the working directory.
+const UI_ROOT = process.env.VERCEL ? process.cwd() : resolve(import.meta.dirname, '..');
 /** Committed, hand-written bundles. Always provenance "synthetic". */
 export const SYNTHETIC_DIR = join(UI_ROOT, 'data', 'synthetic');
 /**

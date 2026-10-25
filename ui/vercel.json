@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/handler?route=:path*" }
+  ],
+  "functions": {
+    "api/handler.ts": {
+      "includeFiles": "data/synthetic/**"
+    }
+  }
+}
