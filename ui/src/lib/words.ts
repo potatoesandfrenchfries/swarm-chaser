@@ -1,20 +1,4 @@
-import type { Basis, ClaimStatus, EventType, Provenance, Run } from '../model/types.ts';
-
-export const EVENT_WORD: Record<EventType, string> = {
-  read: 'Reads',
-  delegate: 'Hands over a task',
-  claim: 'Says the claim',
-  repeat: 'Repeats it',
-  endorse: 'Agrees with it',
-  dispute: 'Questions it',
-  action: 'Takes an action',
-  check: 'Checks the facts',
-  intervene: 'Steps in',
-  correct: 'Corrects it',
-  submit: 'Asks VETO',
-  allow: 'Lets it through',
-  divert: 'Sends it to the honeypot',
-};
+import type { Basis, ClaimStatus, Provenance, Run } from '../model/types.ts';
 
 export const STATUS_WORD: Record<ClaimStatus, string> = {
   supported: 'Supported',
@@ -40,6 +24,11 @@ export const PROVENANCE_NOTE: Record<Provenance, string> = {
   recorded: 'Replayed from a captured run.',
   live: 'Events arriving from a running source.',
 };
+
+/** A run's set-up in a few words, so runs with the same title can be told apart. */
+export function setupWords(d: { attack: boolean; veto: boolean }): string {
+  return `${d.attack ? 'Attack' : 'No attack'}, ${d.veto ? 'with' : 'without'} VETO`;
+}
 
 export function actorName(run: Run, id: string): string {
   return run.actors.find((a) => a.id === id)?.name ?? id;

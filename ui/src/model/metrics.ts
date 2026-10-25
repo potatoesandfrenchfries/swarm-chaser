@@ -93,13 +93,21 @@ export type Outcome = { word: string; tone: 'calm' | 'bad' | 'good' };
 
 /** A run's result in one word for a viewer: did a harmful action get out, get stopped, or never start. */
 export function outcomeOf(m: ClaimMetrics | null): Outcome {
-  if (!m || !m.present) return { word: 'Nothing planted', tone: 'calm' };
-  if (m.gotThrough.length) return { word: 'Leaked', tone: 'bad' };
-  if (m.diverted.length) return { word: 'Blocked', tone: 'good' };
+  return outcomeWord(Boolean(m?.present), Boolean(m?.gotThrough.length), Boolean(m?.diverted.length));
+}
+
+/** The same word from the bare facts, for runs that record only their outcome and no steps. */
+export function outcomeWord(planted: boolean, leaked: boolean, blocked: boolean): Outcome {
+  if (!planted) return { word: 'Nothing planted', tone: 'calm' };
+  if (leaked) return { word: 'Leaked', tone: 'bad' };
+  if (blocked) return { word: 'Blocked', tone: 'good' };
   return { word: 'No harm', tone: 'calm' };
 }
 
-/** The claim a bundle is about: the experiment's focus, or the first claim any run has. */
+/**
+ * The claim a bundle is about: the experiment's focus, or else the claim planted as false. A run's
+ * true claims are never the focus, so a run with nothing planted reads as "Nothing planted".
+ */
 export function focusClaimOf(bundle: Bundle): string | null {
-  return bundle.experiment?.focus_claim ?? bundle.runs.flatMap((r) => r.claims)[0]?.id ?? null;
+  return bundle.experiment?.focus_claim ?? bundle.runs.flatMap((r) => r.claims).find((c) => c.ground_truth === 'false-by-design')?.id ?? null;
 }
