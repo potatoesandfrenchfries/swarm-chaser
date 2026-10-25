@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { DecisionBadge } from '../components/DecisionBadge.tsx';
 import { PageHead } from '../components/PageHead.tsx';
@@ -10,11 +9,6 @@ import { useRuns, type RunRow } from '../state/runs.ts';
 import { useStore } from '../state/store.tsx';
 
 const PAGE = 5;
-const SHOW = [
-  { id: 'all', label: 'All', keep: () => true },
-  { id: 'yours', label: 'Yours', keep: (r: RunRow) => !r.mock },
-  { id: 'mock', label: 'Mock', keep: (r: RunRow) => r.mock },
-] as const;
 /** Which alert stands for a run in the list: a leak matters more than a block, a block more than a flag. */
 const SEVERITY: Decision[] = ['leaked', 'blocked', 'flagged'];
 
@@ -31,8 +25,7 @@ export function OverviewView() {
   const off = tally(false, 'bad');
   const flagged = rows.filter((r) => r.digest.alerts.length);
   const alertPage = usePage(flagged, PAGE);
-  const [show, setShow] = useState<(typeof SHOW)[number]['id']>('all');
-  const runPage = usePage(rows.filter(SHOW.find((s) => s.id === show)!.keep), PAGE);
+  const runPage = usePage(rows, PAGE);
 
   const openRun = (r: RunRow, view: 'chat' | 'activity' = 'chat') => {
     if (!r.open) return;
@@ -42,7 +35,7 @@ export function OverviewView() {
 
   return (
     <main className="page">
-      <PageHead title="Overview" sub="Every run on this server, and what VETO did in it." />
+      <PageHead title="Overview" />
       {error && <p className="task-error">{error}</p>}
 
       <section className="dash-kpis" aria-label="Does VETO work">
@@ -65,7 +58,7 @@ export function OverviewView() {
         <div className="kpi">
           <span className="kpi-label">All runs</span>
           <strong>{rows.length}</strong>
-          <span>{rows.filter((r) => r.mock).length ? `${rows.filter((r) => !r.mock).length} yours, ${rows.filter((r) => r.mock).length} mock` : `${rows.filter((r) => r.status === 'Running').length} running now`}</span>
+          <span>{rows.filter((r) => r.status === 'Running').length} running now</span>
         </div>
       </section>
 
@@ -79,7 +72,8 @@ export function OverviewView() {
         {!flagged.length && <p className="muted">Nothing was blocked, flagged or leaked yet.</p>}
         <ul className="alert-list">
           {alertPage.slice.map((r) => {
-            const worst = SEVERITY.map((d) => r.digest.alerts.find((a) => a.decision === d)).find(Boolean)!;
+            const worst = SEVERITY.map((d) => r.digest.alerts.find((a) => a.decision === d)).find(Boolean);
+            if (!worst) return null;
             const more = r.digest.alerts.length - 1;
             return (
               <li key={r.key}>
@@ -104,15 +98,6 @@ export function OverviewView() {
         <header className="card-head">
           <h2>Runs</h2>
           <div className="card-tools">
-            {rows.some((r) => r.mock) && (
-              <div className="runs" role="radiogroup" aria-label="Show">
-                {SHOW.map((s) => (
-                  <button key={s.id} type="button" role="radio" aria-checked={show === s.id} onClick={() => setShow(s.id)}>
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            )}
             <Pager p={runPage} label="Runs" />
           </div>
         </header>
@@ -131,7 +116,6 @@ export function OverviewView() {
               <tr
                 key={r.key}
                 className={r.open ? '' : 'is-static'}
-                title={r.open ? undefined : 'A mock run from the stats generator: it records the outcome, not the steps.'}
                 onClick={() => openRun(r)}
                 tabIndex={r.open ? 0 : undefined}
                 onKeyDown={(ev) => ev.key === 'Enter' && openRun(r)}

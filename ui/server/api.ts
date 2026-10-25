@@ -2,7 +2,6 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getBundle, loadAll } from './bundles.ts';
 import { listLive, parseLive, streamLive, LIVE_DIR } from './live.ts';
 import { configured, readRun, status, type Neo4jEnv } from './neo4j.ts';
-import { listMockRuns } from './mock.ts';
 import { streamRecordedRun } from './simulate.ts';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -59,7 +58,6 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null>
  *   GET /api/tasks                        tasks the dashboard can start, with their set-ups
  *   POST /api/tasks {task, setup}         start one; answers {id} of the live run it streams
  *   GET /api/live                         live runs streaming into local/live/
- *   GET /api/mock-runs                    mock sandbox runs from the stats generator, outcome only
  *   GET /api/live/:id                     one live run as it stands now
  *   GET /api/live/:id/stream              Server-Sent Events: snapshot, then each new step
  */
@@ -98,7 +96,6 @@ export function apiMiddleware(env: Neo4jEnv) {
         return send(200, TASKS.map((t) => ({ ...t, attack: attackOf(t.bundle) })));
       }
       if (parts[1] === 'live' && parts.length === 2) return send(200, listLive());
-      if (parts[1] === 'mock-runs' && parts.length === 2) return send(200, listMockRuns());
       if (parts[1] === 'live' && parts.length === 4 && parts[3] === 'stream') {
         if (!streamLive(parts[2], res, env)) return send(404, { error: 'No live run with that name.' });
         return;

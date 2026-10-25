@@ -103,7 +103,6 @@ Credentials are read only on the server (`process.env` / `ui/.env`, never `VITE_
 | Synthetic demonstration | `data/synthetic/merch-launch.json` | `synthetic` | Present. Hand-written, three conditions, one run each |
 | Recorded village or sandbox runs | `../local/replay/*.json` (git-ignored, dataset terms) or `REPLAY_DIR` | `recorded` | **No recorded bundle exists yet.** The server lists one as soon as a file appears |
 | Live | — | `live` | Not implemented; no live source exists |
-| Mock sandbox runs | `../local/mock_stats/lab_runs.json` (git-ignored) or `MOCK_STATS_DIR`, written by `python -m stats.mock` on the stats branch | outcome only, no steps | Listed in the overview and counted in its VETO comparison; they cannot be opened. `server/mock.ts` maps the arms: no plant is no attack, a planted claim is an attack without VETO, and the outside model stepping in plays VETO |
 
 Provenance is shown in the header, the Compare kicker, the inspector's run panel and every Neo4j node. If the API fails, the app shows the error and offers the synthetic demo by name; it never substitutes it silently (e2e: "when the server fails …").
 
