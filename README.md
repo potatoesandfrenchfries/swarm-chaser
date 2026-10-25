@@ -1,6 +1,6 @@
-<p align="center"><img src="assets/banner.svg" alt="canary: a planted note passes from agent to agent until VETO blocks it" width="100%"></p>
+<p align="center"><img src="assets/banner.svg" alt="Swarm Chaser: a planted note passes from agent to agent until VETO blocks it" width="100%"></p>
 
-# canary
+# Swarm Chaser
 
 Do false claims spread between AI agents, and what stops them?
 
