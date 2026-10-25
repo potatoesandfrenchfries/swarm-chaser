@@ -111,11 +111,10 @@ Status is never colour alone: every status has a glyph and a word. Selection is 
 
 ## Typography
 
-- **Archivo Variable** (wdth 62–125, wght 100–900), interface. Wordmark wdth 125 / 650. Caption 32/1.15 wght 500, tracking −0.01em. Body 14/1.45. Labels 12–13. Tabular numerals for steps and counts.
-- **Newsreader Variable** (optical size), verbatim record text only: claims, messages, evidence quotes. Seeing serif means "this is what was actually written". 17–25px, line-height 1.35.
-- **JetBrains Mono Variable**: record ids, file names, tool calls, CSV rows. 12–13px. Never for labels.
-- Self-hosted via `@fontsource-variable/*`, so the demo needs no network. Fallbacks: `system-ui`, Georgia, `ui-monospace`.
-- No all-caps eyebrows. Sentence case everywhere.
+- **Geist Variable** (wght 100–900), interface, headlines, and verbatim quotes. No italics or cursive anywhere.
+- **Geist Mono Variable**: record ids, file names, tool calls, CSV rows.
+- Self-hosted via `@fontsource-variable/geist` and `@fontsource-variable/geist-mono`, so the demo needs no network.
+- Icons from `lucide-react`.
 
 ## Space, layout, surfaces
 
