@@ -27,7 +27,6 @@ agree, and by checking that it finds failures already documented in the village.
 - [Folder map](#folder-map)
 - [Keys, data and spending](#keys-data-and-spending)
 - [Tests and CI](#tests-and-ci)
-- [Further reading](#further-reading)
 
 ## Quick start
 
@@ -161,11 +160,3 @@ npm run e2e                   # Playwright, using the installed Google Chrome
 On every pull request, CI runs ruff, checks that `uv.lock` is current, runs pytest on Python 3.11
 to 3.13 with a 95% coverage floor, and imports every declared dependency. A single job named
 `CI passed` gates merging.
-
-## Further reading
-
-- [scope.md](./scope.md): the full question, the components, the evaluation and the risks.
-- [MVP.md](./MVP.md): the smallest build that answers the question, and what is out of it.
-- [STRESSTEST.md](./STRESSTEST.md): what broke when the observer model was trained on an outside
-  dataset.
-- [ui/ARCHITECTURE.md](./ui/ARCHITECTURE.md): the web app's data model, API and views.
