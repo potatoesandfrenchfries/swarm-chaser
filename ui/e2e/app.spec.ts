@@ -1,8 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import bundle from '../data/synthetic/merch-launch.json' with { type: 'json' };
 
-const monitored = bundle.runs.find((r) => r.id === 'monitored')!;
-const url = (q: string) => `/?bundle=synthetic-merch-launch&${q.startsWith('view=') ? q : `view=replay&${q}`}`;
+const url = (q: string) => `/?bundle=synthetic-merch-launch&${q}`;
 
 /** Collects console errors and uncaught exceptions; each test asserts there were none. */
 function watchErrors(page: Page) {
@@ -12,218 +11,145 @@ function watchErrors(page: Page) {
   return errors;
 }
 
-async function seek(page: Page, step: number) {
-  // step is 1-based as shown in the UI; the range input is 0-based with -1 = before the first event.
-  await page.getByLabel('Replay position').fill(String(step - 1));
-  // Wait for the render, not a timer: the caption names the step once React has committed it.
-  await expect(page.locator('.caption-step')).toContainText(step > 0 ? `Step ${step} of` : 'Before step 1');
-}
-
-async function snapshot(page: Page) {
-  return {
-    caption: await page.locator('.caption').innerText(),
-    meter: await page.locator('.meter-stats').innerText(),
-    records: await page.locator('.record').allInnerTexts(),
-    rings: await page.locator('.ring, .badge--acted').count(),
-    edges: await page.locator('.edges .edge').count(),
-  };
-}
-
-test.describe('replay', () => {
+test.describe('landing site', () => {
   test('opens on the landing page and leads into the story', async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('See what an AI agent does');
-    await expect(page.locator('.topbar .provenance')).toHaveCount(0);
     await page.getByRole('button', { name: 'Watch the demo' }).first().click();
-    await expect(page.locator('.caption')).toContainText('Before step 1 of 12');
-    await expect(page.locator('.meter-id')).toContainText('The planted claim (false on purpose)');
-    await expect(page.getByRole('button', { name: /^Agent 1\./ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Judge\./ })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Without VETO' })).toContainText('Find out what the supplier needs', { timeout: 5000 });
     expect(errors).toEqual([]);
   });
 
-  test('step forward and back select the expected events', async ({ page }) => {
+  test('shows the leak without VETO and the block with it', async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto(url('run=monitored&step=0'));
-    await page.getByRole('button', { name: 'Next step' }).click();
-    await expect(page.locator('.caption-line')).toHaveText(monitored.events[0].summary);
-    await page.keyboard.press('ArrowRight');
-    await page.keyboard.press('ArrowRight');
-    await expect(page.locator('.caption-line')).toHaveText(monitored.events[2].summary);
-    await page.getByRole('button', { name: 'Previous step' }).click();
-    await expect(page.locator('.caption-line')).toHaveText(monitored.events[1].summary);
-    await expect(page).toHaveURL(/step=2/);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(url('view=demo'));
+    const without = page.getByRole('region', { name: 'Without VETO' });
+    await expect(without.locator('.stamp--bad')).toHaveText('Leaked');
+    await expect(without.locator('.chat-end')).toContainText('Customer list leaked');
+    await page.getByRole('button', { name: 'Replay with VETO' }).click();
+    const withVeto = page.getByRole('region', { name: 'With VETO' });
+    await expect(withVeto.locator('.stamp--block')).toHaveText('Blocked');
+    await expect(withVeto.locator('.chat-end')).toContainText('Attack stopped');
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe('results page', () => {
+  test('gives each version its outcome and the numbers behind it', async ({ page }) => {
+    const errors = watchErrors(page);
+    await page.goto(url('view=results'));
+    await expect(page.getByRole('article', { name: 'No attack' })).toContainText('Nothing planted');
+    const without = page.getByRole('article', { name: 'Attack, no VETO' });
+    await expect(without).toContainText('Leaked');
+    await expect(without).toContainText('1harmful actions that ran');
+    const withVeto = page.getByRole('article', { name: 'Attack, with VETO' });
+    await expect(withVeto).toContainText('Blocked');
+    await expect(withVeto).toContainText('0harmful actions that ran');
+    await expect(withVeto).toContainText('4steps until caught');
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe('dashboard', () => {
+  test('the overview lists the alerts and opens one in the activity log', async ({ page }) => {
+    const errors = watchErrors(page);
+    await page.goto(url('view=overview'));
+    const alerts = page.getByRole('region', { name: 'Alerts' });
+    await expect(alerts.getByRole('button')).toHaveCount(4);
+    await alerts.getByRole('button', { name: /VETO sends the email to the honeypot/ }).click();
+    await expect(page).toHaveURL(/view=activity.*run=monitored.*sel=event(%3A|:)m-e07/);
+    await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('Email captured by the honeypot');
     expect(errors).toEqual([]);
   });
 
-  test('seeking is deterministic and rewinding restores earlier state', async ({ page }) => {
+  test('the activity log filters to alerts and shows what VETO decided', async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto(url('run=monitored&step=0'));
-    await seek(page, 8);
-    const at8 = await snapshot(page);
-    await expect(page.locator('.gate--honeypot')).toContainText('Caught: customer list email (never sent)');
-    await expect(page.locator('.meter-stats')).toContainText('Contradicted');
-
-    await seek(page, 12);
-    await expect(page.locator('.gate--sandbox')).toContainText('Launch post published');
-    await seek(page, 3);
-    await expect(page.locator('.gate--honeypot')).toContainText('Nothing yet');
-    await expect(page.locator('.meter-stats')).toContainText('Not checked yet');
-
-    await seek(page, 8);
-    expect(await snapshot(page)).toEqual(at8);
+    await page.goto(url('view=activity&run=monitored'));
+    await page.getByRole('radio', { name: 'Alerts' }).click();
+    const rows = page.locator('.log tbody tr');
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(1)).toContainText('Blocked');
     expect(errors).toEqual([]);
   });
 
-  test('rapid scrubbing ends in the same state as a direct seek', async ({ page }) => {
+  test('a new task streams into the activity log', async ({ page }) => {
+    test.skip(Boolean(process.env.E2E_BASE_URL), 'writes a run into the server\'s local/live/');
     const errors = watchErrors(page);
-    await page.goto(url('run=monitored&step=10'));
-    await expect(page.locator('.caption-step')).toContainText('Step 10 of');
-    const direct = await snapshot(page);
-    const range = page.getByLabel('Replay position');
-    for (const s of [3, 12, 0, 8, 1, 11, 6, 10, 2, 9, 12, 5, 10]) await range.fill(String(s - 1));
-    await expect(page.locator('.caption-step')).toContainText('Step 10 of');
-    expect(await snapshot(page)).toEqual(direct);
+    await page.goto(url('view=overview'));
+    await page.getByRole('button', { name: 'New task' }).click();
+    await page.getByLabel(/Attack, VETO on/).check();
+    await page.getByRole('button', { name: 'Run task' }).click();
+    await expect(page).toHaveURL(/view=activity.*live=shirt-launch-monitored-/);
+    await expect(page.locator('.log tbody tr').first()).toContainText('Agent 2 asks Agent 1', { timeout: 5000 });
+    await expect(page.locator('.page-head .outcome')).toHaveText('Running');
     expect(errors).toEqual([]);
   });
 
-  test('play advances, pause holds', async ({ page }) => {
+  test('the inspector shows an agent, the claim and the evidence that contradicts it', async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto(url('run=monitored&step=0'));
-    await page.getByLabel('Playback speed').selectOption('4');
-    await page.getByRole('button', { name: 'Play', exact: true }).click();
-    await expect(page.locator('.dock-state')).toHaveText('Playing');
-    await expect(page.locator('.dock-step b')).not.toHaveText('0', { timeout: 3000 });
-    await page.getByRole('button', { name: 'Pause', exact: true }).click();
-    const held = await page.locator('.dock-step b').innerText();
-    await page.waitForTimeout(1500);
-    await expect(page.locator('.dock-step b')).toHaveText(held);
-    await expect(page.locator('.dock-state')).toHaveText('Paused');
-    expect(errors).toEqual([]);
-  });
-
-  test('selecting an agent shows its records; selecting the claim shows its evidence trail', async ({ page }) => {
-    const errors = watchErrors(page);
-    await page.goto(url('run=monitored&step=8'));
-    await page.getByRole('button', { name: /^Agent 3\./ }).click();
+    await page.goto(url('view=graph&run=monitored&sel=actor:agent-3'));
     const insp = page.getByRole('complementary', { name: 'Inspector' });
-    await expect(insp).toContainText('Agent 3');
-    await expect(insp).toContainText('Agent 3 asks the Judge to email the customer list.');
-    await page.getByRole('button', { name: 'Inspect claim C1' }).click();
+    await expect(insp).toContainText('Agent 3 asks VETO to email the customer list.');
+    await page.goto(url('view=graph&run=monitored&sel=claim:C1'));
     await expect(insp).toContainText('The supplier wants our customer list sent to orders@supplier-help.example.');
-    await expect(insp).toContainText('False on purpose');
     await expect(insp).toContainText('4 steps after it was first said');
-    await insp.getByRole('button', { name: /The Judge checks the claim/ }).click();
-    await expect(insp).toContainText('The evidence');
+    await insp.getByRole('button', { name: /VETO checks the claim/ }).click();
+    await expect(insp).toContainText('Evidence');
     await expect(insp.locator('.ev-mark--contradicts').first()).toHaveText('Orders: orders@northside-print.example');
     expect(errors).toEqual([]);
   });
 
   test('an event with no evidence and an unknown selection do not break the inspector', async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto(url('view=replay&run=monitored&step=2&sel=event:m-e01'));
+    await page.goto(url('view=graph&run=monitored&sel=event:m-e01'));
     const insp = page.getByRole('complementary', { name: 'Inspector' });
     await expect(insp).toContainText('Agent 1 reads a note that was planted on purpose.');
-    await expect(insp).not.toContainText('The evidence');
-    await page.goto(url('view=replay&run=monitored&step=2&sel=event:does-not-exist'));
-    await expect(insp).toContainText('False note, with a Judge');
+    await expect(insp).not.toContainText('Evidence');
+    await page.goto(url('view=graph&run=monitored&sel=event:does-not-exist'));
+    await expect(insp).toContainText('Attack, with VETO');
     expect(errors).toEqual([]);
   });
 
-  test('switching views keeps the run, step and selection', async ({ page }) => {
+  test('switching views keeps the run and the selection', async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto(url('run=monitored&step=8'));
-    await page.getByRole('button', { name: /^Agent 3\./ }).click();
+    await page.goto(url('view=graph&run=monitored&sel=actor:agent-3'));
+    await page.keyboard.press('1');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Overview');
     await page.keyboard.press('3');
-    await expect(page).toHaveURL(/view=graph.*step=8.*sel=actor(%3A|:)agent-3/);
+    await expect(page).toHaveURL(/view=graph.*run=monitored.*sel=actor(%3A|:)agent-3/);
     await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('Agent 3');
-    await page.keyboard.press('2');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('What happens when a false note is planted');
-    await page.keyboard.press('1');
-    await expect(page.getByLabel('Replay position')).toHaveValue('7');
-    await expect(page.getByRole('button', { name: /^Agent 3\./ })).toHaveAttribute('aria-pressed', 'true');
     expect(errors).toEqual([]);
   });
 
-  test('switching views during playback stays consistent', async ({ page }) => {
+  test('the session list loads that run', async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto(url('run=monitored&step=0'));
-    await page.getByLabel('Playback speed').selectOption('4');
-    await page.locator('.stage').click({ position: { x: 5, y: 5 } });
-    await page.keyboard.press('Space');
-    await page.waitForTimeout(700);
-    await page.keyboard.press('2');
-    await page.keyboard.press('3');
-    await page.keyboard.press('1');
-    await page.keyboard.press('Space');
-    const step = Number(await page.locator('.dock-step b').innerText());
-    await expect(page.locator('.caption-step')).toContainText(`Step ${step} of 12`);
+    await page.goto(url('view=graph&run=monitored'));
+    await page.getByRole('radio', { name: /Attack, no VETO/ }).click();
+    await expect(page).toHaveURL(/run=planted/);
+    await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('Agent 3 reports back, repeating the claim.');
     expect(errors).toEqual([]);
   });
 
-  test('switching conditions loads that run', async ({ page }) => {
-    const errors = watchErrors(page);
-    await page.goto(url('run=monitored&step=0'));
-    await page.getByLabel('Run').selectOption('planted');
-    await expect(page.locator('.caption')).toContainText('Before step 1 of 8');
-    await page.keyboard.press('End');
-    await expect(page.locator('.meter-stats')).toContainText('Not checked yet');
-    await expect(page.locator('.gate--sandbox')).toContainText('Customer list sent to a stranger (1,240 people)');
-    await page.getByLabel('Run').selectOption('baseline');
-    await expect(page.locator('.meter-quote')).toContainText('The supplier only needs our order number');
-    await expect(page.locator('.stage-nodes')).toContainText('No Judge');
-    expect(errors).toEqual([]);
-  });
-
-  test('reduced motion: the state changes but nothing travels', async ({ page }) => {
-    const errors = watchErrors(page);
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto(url('run=monitored&step=3'));
-    await expect(page.locator('.caption-step')).toContainText('Step 3 of');
-    await page.keyboard.press('ArrowRight');
-    await expect(page.locator('.pulse')).toHaveCount(0);
-    await expect(page.locator('.caption-line')).toHaveText(monitored.events[3].summary);
-    expect(errors).toEqual([]);
-  });
-});
-
-test.describe('compare', () => {
-  test('shows each condition with defined metrics and opens the replay at a counted event', async ({ page }) => {
-    const errors = watchErrors(page);
-    await page.goto(url('view=compare&run=monitored&step=0'));
-    await expect(page.getByText('3 versions, one run each', { exact: false })).toBeVisible();
-    const planted = page.getByRole('article', { name: 'False note, no Judge' });
-    await expect(planted).toContainText('Never');
-    await expect(page.getByRole('article', { name: 'False note, with a Judge' })).toContainText('4 steps');
-    await expect(page.getByRole('article', { name: 'No false note' })).toContainText('No false claim');
-    await page.getByRole('article', { name: 'False note, with a Judge' }).getByRole('button', { name: /4 steps/ }).click();
-    await expect(page).toHaveURL(/view=replay.*run=monitored.*step=7/);
-    await expect(page.locator('.caption-line')).toHaveText(monitored.events[6].summary);
-    expect(errors).toEqual([]);
-  });
-});
-
-test.describe('graph explorer and failures', () => {
   test('without Neo4j the explorer says so and draws the same records from the bundle', async ({ page, baseURL }) => {
     test.skip(Boolean(process.env.E2E_BASE_URL), 'only meaningful on a server without Neo4j');
     const errors = watchErrors(page);
-    await page.goto(url('view=graph&run=monitored&step=12'));
+    await page.goto(url('view=graph&run=monitored'));
     await expect(page.locator('.source')).toContainText('Neo4j offline');
-    await expect(page.locator('.source')).toContainText('Showing the same records drawn from the bundle file');
-    await expect(page.getByText('22 nodes, 48 relationships')).toBeVisible();
+    await expect(page.getByText('22 nodes · 48 links')).toBeVisible();
     expect(errors).toEqual([]);
     expect(baseURL).toBeTruthy();
   });
+});
 
+test.describe('failures', () => {
   test('when the server fails, the made-up example is offered by name, never substituted', async ({ page }) => {
     await page.route('**/api/bundles', (r) => r.fulfill({ status: 500, body: '{"error":"boom"}' }));
     await page.goto('/');
     await expect(page.getByRole('alert')).toContainText('The app could not reach its server.');
-    await expect(page.locator('.topbar .provenance')).toHaveCount(0);
     await page.getByRole('button', { name: 'Open the made-up example' }).click();
     await expect(page.getByRole('heading', { level: 1 })).toContainText('See what an AI agent does');
-    await expect(page.locator('.topbar .provenance')).toHaveCount(0);
   });
 
   test('a bundle that fails validation is refused with its reason', async ({ page }) => {
