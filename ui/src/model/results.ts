@@ -85,6 +85,6 @@ export const SOURCES: { title: string; by: string; url?: string; mark?: { file: 
   { title: 'Cost of a Data Breach Report 2026', by: 'IBM and Ponemon Institute, 2026', url: 'https://www.ibm.com/reports/data-breach', mark: { file: 'ibm', label: 'IBM', wide: true } },
   { title: 'AgentHarm: A Benchmark for Measuring Harmfulness of LLM Agents', by: 'Andriushchenko et al., ICLR 2025', url: 'https://arxiv.org/abs/2410.09024', mark: { file: 'arxiv', label: 'arXiv' } },
   { title: 'AI Village dataset', by: 'AI Digest, 2026', url: 'https://huggingface.co/datasets/aidigestorg/ai-village', mark: { file: 'hugging-face', label: 'Hugging Face' } },
-  { title: 'Discovery of a new OpenAI agent message board', by: 'Von Arx, Slade Byrd, Kitts and Larsen, 4 Sep 2026', url: 'https://collusion.wiki/' },
-  { title: 'Hugging Face incident investigation report', by: 'METR, Aug 2026', url: 'https://metr.org/hugging-face-incident-report-aug-2026.pdf' },
+  { title: 'Discovery of a new OpenAI agent message board', by: 'Von Arx, Slade Byrd, Kitts and Larsen, 4 Sep 2026', url: 'https://collusion.wiki/', mark: { file: 'collusion-wiki', label: 'collusion.wiki' } },
+  { title: 'Hugging Face incident investigation report', by: 'METR, Aug 2026', url: 'https://metr.org/hugging-face-incident-report-aug-2026.pdf', mark: { file: 'metr.png', label: 'METR' } },
 ];

@@ -408,18 +408,6 @@ mark {
 .dash-note { margin: 0; font-size: 12.5px; color: var(--ink-muted); }
 .dash-sub { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--ink-muted); }
 
-.run-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.run-tile { padding: 22px; border-radius: 16px; background: var(--bg-deep); display: grid; gap: 20px; align-content: start; }
-.run-tile h3 { margin: 0; font-size: 17px; font-weight: 600; }
-.run-tile header p { margin: 6px 0 0; font-size: 14px; line-height: 1.45; color: var(--ink-muted); min-height: 2.9em; }
-.run-outcome { font-size: clamp(30px, 3vw, 40px); font-weight: 650; letter-spacing: -0.04em; line-height: 1; }
-.run-stats { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
-.run-stats dd { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-.run-stats dt { font-size: 12.5px; color: var(--ink-muted); }
-.run-tile--bad { background: var(--contradicted); color: #fff; }
-.run-tile--good { background: var(--ink); color: #fff; }
-.run-tile--bad header p, .run-tile--good header p, .run-tile--bad .run-stats dt, .run-tile--good .run-stats dt { color: rgb(255 255 255 / 0.75); }
-
 .hbars { display: grid; gap: 16px; }
 .chart-callout { margin: 0; display: flex; align-items: baseline; gap: 10px; }
 .chart-callout strong { font-size: 28px; font-weight: 650; letter-spacing: -0.04em; color: var(--correction); font-variant-numeric: tabular-nums; }
@@ -500,7 +488,7 @@ mark {
 @media (max-width: 960px) {
   .dash-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .profile-fields { grid-template-columns: 1fr; }
-  .dash-row, .run-grid { grid-template-columns: 1fr; }
+  .dash-row { grid-template-columns: 1fr; }
 }
 
 /* ---- dashboard pages ------------------------------------------------------------------- */

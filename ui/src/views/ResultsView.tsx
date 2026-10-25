@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { Banknote, DoorOpen, FilePen, FolderOutput, KeyRound, Mail, Package, Settings2, Share2, ShieldAlert, Unplug, UserSearch, type LucideIcon } from 'lucide-react';
-import { claimMetrics, focusClaimOf, outcomeOf, type ClaimMetrics } from '../model/metrics.ts';
 import { ATTACK_TYPES, DATASETS, HEADLINE, MODEL_RESULTS, PROBE, SOURCES, STACK } from '../model/results.ts';
-import type { Bundle, Run } from '../model/types.ts';
 
-const ORDER: Record<string, number> = { baseline: 0, planted: 1, monitored: 2 };
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 const markSrc = (file: string) => `/marks/${file.includes('.') ? file : `${file}.svg`}`;
 const ATTACK_ICONS: Record<string, LucideIcon> = {
@@ -22,11 +19,8 @@ const ATTACK_ICONS: Record<string, LucideIcon> = {
   'Supply chain': Package,
 };
 
-/** The results dashboard: headline numbers, the demo's three versions, and the evidence behind the monitors. */
-export function ResultsView({ bundle }: { bundle: Bundle }) {
-  const runs = [...bundle.runs].sort((a, b) => (ORDER[a.condition ?? ''] ?? 9) - (ORDER[b.condition ?? ''] ?? 9));
-  const focus = focusClaimOf(bundle);
-
+/** The results dashboard: headline numbers and the evidence behind the monitors. */
+export function ResultsView() {
   return (
     <main className="dash">
       <header className="dash-head">
@@ -40,14 +34,6 @@ export function ResultsView({ bundle }: { bundle: Bundle }) {
         <Kpi value={HEADLINE.blackboxAuc.toFixed(2)} label="Visible actions only" note="AUC from the transcript alone" />
         <Kpi value={String(ATTACK_TYPES.length)} label="Attack types" note="from exfiltration to supply chain" />
       </section>
-
-      <Card title="The demo, three ways" note={bundle.experiment?.caveats[0]}>
-        <div className="run-grid">
-          {runs.map((r) => (
-            <RunTile key={r.id} run={r} m={focus ? claimMetrics(r, focus) : null} />
-          ))}
-        </div>
-      </Card>
 
       <div className="dash-row">
         <Card title="Outside vs inside" note="AUC: 0.5 is a coin flip, 1.0 is perfect.">
@@ -130,7 +116,7 @@ export function ResultsView({ bundle }: { bundle: Bundle }) {
         <ol className="dash-sources">
           {SOURCES.map((s) => (
             <li key={s.title}>
-              {s.mark ? <img className="brand-mark" src={markSrc(s.mark.file)} alt="" title={s.mark.label} /> : <span className="brand-mark" aria-hidden="true" />}
+              {s.mark && <img className="brand-mark" src={markSrc(s.mark.file)} alt="" title={s.mark.label} />}
               {s.url ? (
                 <a href={s.url} target="_blank" rel="noreferrer">
                   {s.title}
@@ -164,35 +150,6 @@ function Card({ title, note, children }: { title: string; note?: string; childre
       {children}
       {note && <p className="dash-note">{note}</p>}
     </section>
-  );
-}
-
-function RunTile({ run, m }: { run: Run; m: ClaimMetrics | null }) {
-  const outcome = outcomeOf(m);
-  const agents = run.actors.filter((a) => a.kind === 'agent').length;
-  const present = Boolean(m?.present);
-  const stats = [
-    { label: 'agents reached', value: present ? `${m!.exposed.length}/${agents}` : '0' },
-    { label: 'tried to act on it', value: present ? String(m!.actions.length) : '0' },
-    { label: 'harmful actions that ran', value: present ? String(m!.gotThrough.length) : '0' },
-    { label: 'steps until caught', value: m?.detectionDistance != null ? String(m.detectionDistance) : '–' },
-  ];
-  return (
-    <article className={`run-tile run-tile--${outcome.tone}`} aria-label={run.title}>
-      <header>
-        <h3>{run.title}</h3>
-        <p>{run.notes[0]}</p>
-      </header>
-      <strong className="run-outcome">{outcome.word}</strong>
-      <dl className="run-stats">
-        {stats.map((s) => (
-          <div key={s.label}>
-            <dd>{s.value}</dd>
-            <dt>{s.label}</dt>
-          </div>
-        ))}
-      </dl>
-    </article>
   );
 }
 

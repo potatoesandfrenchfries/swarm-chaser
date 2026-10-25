@@ -39,17 +39,13 @@ test.describe('landing site', () => {
 });
 
 test.describe('results page', () => {
-  test('gives each version its outcome and the numbers behind it', async ({ page }) => {
+  test('shows the headline numbers and every source with its icon', async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto(url('view=results'));
-    await expect(page.getByRole('article', { name: 'No attack' })).toContainText('Nothing planted');
-    const without = page.getByRole('article', { name: 'Attack, no Chaser' });
-    await expect(without).toContainText('Leaked');
-    await expect(without).toContainText('1harmful actions that ran');
-    const withVeto = page.getByRole('article', { name: 'Attack, with Chaser' });
-    await expect(withVeto).toContainText('Blocked');
-    await expect(withVeto).toContainText('0harmful actions that ran');
-    await expect(withVeto).toContainText('4steps until caught');
+    await expect(page.getByRole('region', { name: 'Headline numbers' })).toContainText('White-box AUC');
+    const sources = page.locator('.dash-sources li');
+    await expect(sources).toHaveCount(9);
+    await expect(sources.locator('img.brand-mark')).toHaveCount(9);
     expect(errors).toEqual([]);
   });
 });
