@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-label="Swarm Chaser: a planted note passes from agent to agent until Chaser blocks it">
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="380" viewBox="0 0 720 380" role="img" aria-label="Swarm Chaser: a planted note passes from agent to agent until Chaser blocks it">
   <!-- Blob outlines and colours are the agent avatars in ui/src/components/Avatar.tsx. -->
   <defs>
     <g id="eyes">
@@ -11,14 +11,14 @@
     </g>
   </defs>
 
-  <rect width="1280" height="420" rx="28" fill="#f6f6f8"/>
+  <rect width="720" height="380" rx="24" fill="#f6f6f8"/>
 
   <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
-    <text x="72" y="196" font-size="68" font-weight="700" letter-spacing="-2" fill="#141413">Swarm Chaser</text>
-    <text x="74" y="252" font-size="26" fill="#6b6b70">Do false claims spread between AI agents,</text>
-    <text x="74" y="288" font-size="26" fill="#6b6b70">and what stops them?</text>
+    <text x="360" y="84" font-size="56" font-weight="700" letter-spacing="-2" fill="#141413" text-anchor="middle">Swarm Chaser</text>
   </g>
 
+  <!-- The scene is drawn at its original coordinates and scaled to sit centred under the title. -->
+  <g transform="translate(-446 40) scale(0.85)">
   <!-- The claim's path: yellow while it spreads, blue where Chaser meets it. -->
   <path d="M708 214 Q 760 150 818 140 Q 905 170 948 274 Q 1000 150 1066 140" fill="none" stroke="#e0b100" stroke-width="4" stroke-dasharray="2 11" stroke-linecap="round"/>
   <path d="M1066 140 Q 1140 170 1168 252" fill="none" stroke="#0645b1" stroke-width="4" stroke-linecap="round"/>
@@ -56,5 +56,6 @@
   <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
     <rect x="1084" y="338" width="172" height="38" rx="19" fill="#0645b1"/>
     <text x="1170" y="363" font-size="17" font-weight="600" fill="#ffffff" text-anchor="middle">Chaser blocked it</text>
+  </g>
   </g>
 </svg>

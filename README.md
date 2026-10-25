@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/banner.svg" alt="Swarm Chaser: a planted note passes from agent to agent until Chaser blocks it" width="100%"></p>
+<p align="center"><img src="assets/banner.svg" alt="Swarm Chaser: a planted note passes from agent to agent until Chaser blocks it" width="600"></p>
 
 # Swarm Chaser
 
