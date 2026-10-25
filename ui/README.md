@@ -1,6 +1,6 @@
 # claim-spread UI
 
-The **Demo** opens as the original large, animated agent chat. **Show graph** adds a network alongside the conversation without restarting it. The optional graph uses the same avatars, cards and controls as the rest of the app. React Flow provides pan, zoom, fit, node dragging and keyboard navigation, constrained to the team's layout: sandbox left, agents central, Judge below, honeypot right.
+The **Demo** opens as the original large, animated agent chat. **Show graph** adds a network alongside the conversation without restarting it. The optional graph uses the same avatars, cards and controls as the rest of the app. React Flow provides pan, zoom, fit, node dragging and keyboard navigation, constrained to the team's layout: sandbox left, agents central, Chaser below, honeypot right.
 
 The dashboard offers run setup, an overview and each run's **Chat / Log / Graph** tabs. The Graph tab opens the same React Flow graph beside the original chat. Data explorer opens the Neo4j property graph, using the bundle when the database is offline.
 

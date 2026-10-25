@@ -4,7 +4,7 @@
 //   npm run swarm:import -- "/path/to/swarm-log.jsonl" [--prefix qwen] [--alice "Qwen2.5 3B"] [--bob "Qwen2.5 3B"] [--judge "Claude Sonnet 5.5"]
 //
 // --prefix keeps logs that reuse run ids (swarm-plain-0, …) from overwriting each other. With --judge the
-// influencer is shown as the Judge on that model; without it, as an unnamed Influencer.
+// influencer is Chaser, the monitor, on that model; without it, an unnamed Influencer agent.
 //
 // Mapping, since the swarm log and the replay model differ:
 //   tool_call read_file / list_files -> read      tool_call anything else -> action
@@ -74,6 +74,7 @@ for (const [logId, runRows] of byRun) {
     if (!actors.some((x) => x.id === id)) actors.push({ id, name: a.name ?? name(id), kind: a.kind, model: a.model, role: a.role });
     return id;
   };
+  const label = (id: string) => actors.find((x) => x.id === id)?.name ?? name(id);
   const agent = (id: string) => actor(id, { kind: 'agent', model: MODELS[id] ?? null, role: id === task?.focus ? 'Focus agent' : 'Agent' });
   const record = (id: string, label: string, kind: RecordNode['kind']) => {
     if (!records.some((x) => x.id === id)) records.push({ id, label, kind, planted: false, content: null, source: null });
@@ -117,27 +118,27 @@ for (const [logId, runRows] of byRun) {
       const args = r.args ?? {};
       if (READ_TOOLS.has(r.tool!)) {
         const target = r.tool === 'read_file' ? record(`file:${args.path}`, String(args.path), 'document') : record('files', 'Project files', 'listing');
-        push({ ts, type: 'read', actor: a, target: { kind: 'record', id: target }, claim: null, text: thought(a), summary: `${name(a)} ${r.tool === 'read_file' ? `reads ${args.path}` : 'lists the project files'}.`, tool: { name: r.tool!, args } }, r);
+        push({ ts, type: 'read', actor: a, target: { kind: 'record', id: target }, claim: null, text: thought(a), summary: `${label(a)} ${r.tool === 'read_file' ? `reads ${args.path}` : 'lists the project files'}.`, tool: { name: r.tool!, args } }, r);
       } else {
         const where = String(args.url ?? args.path ?? args.command ?? r.tool);
         const target = record(`tool:${where}`, where, 'tool');
-        push({ ts, type: 'action', actor: a, target: { kind: 'record', id: target }, claim: null, text: thought(a), summary: `${name(a)} calls ${r.tool} on ${where}.`, tool: { name: r.tool!, args } }, r);
+        push({ ts, type: 'action', actor: a, target: { kind: 'record', id: target }, claim: null, text: thought(a), summary: `${label(a)} calls ${r.tool} on ${where}.`, tool: { name: r.tool!, args } }, r);
       }
       continue;
     }
     if (r.type === 'finished') {
       const a = agent(r.agent!);
-      push({ ts, type: 'action', actor: a, target: null, claim: null, text: thought(a), summary: r.tool ? `${name(a)} stops with ${r.tool}.` : `${name(a)} stops without calling a tool.`, tool: r.tool ? { name: r.tool, args: {} } : null }, r);
+      push({ ts, type: 'action', actor: a, target: null, claim: null, text: thought(a), summary: r.tool ? `${label(a)} stops with ${r.tool}.` : `${label(a)} stops without calling a tool.`, tool: r.tool ? { name: r.tool, args: {} } : null }, r);
       continue;
     }
     if (r.type === 'influencer' || r.type === 'board') {
       const a = r.type === 'influencer'
-        ? actor('influencer', judge ? { name: 'Judge', kind: 'agent', model: judge, role: 'Reviews the board and steers both agents between rounds' } : { kind: 'agent', model: null, role: 'Posts to both agents between rounds' })
+        ? actor('influencer', judge ? { name: 'Chaser', kind: 'monitor', model: judge, role: 'Reviews the board and steers both agents between rounds' } : { kind: 'agent', model: null, role: 'Posts to both agents between rounds' })
         : agent(r.agent!);
       const board = record('board', 'Shared board', 'message');
       const c = claimFor(r.text ?? '', `e${events.length}`);
       if (r.type === 'board') thought(a);
-      push({ ts, type: c.fresh ? 'claim' : 'repeat', actor: a, target: { kind: 'record', id: board }, claim: c.id, text: r.text ?? null, summary: c.fresh ? `${name(a)} posts to the board.` : `${name(a)} reposts the same message to the board.`, tool: null }, r);
+      push({ ts, type: c.fresh ? 'claim' : 'repeat', actor: a, target: { kind: 'record', id: board }, claim: c.id, text: r.text ?? null, summary: c.fresh ? `${label(a)} posts to the board.` : `${label(a)} reposts the same message to the board.`, tool: null }, r);
       continue;
     }
     console.warn(`${runId}: skipped unknown row type ${r.type}`);
@@ -155,7 +156,7 @@ for (const [logId, runRows] of byRun) {
     schema: 'claim-spread/live@1',
     title: `${task?.text ?? runId} (${variant})`,
     provenance: 'live',
-    description: `Alice (${MODELS.alice}) and Bob (${MODELS.bob})${judge ? `, steered by a Judge (${judge})` : ''}, run ${logId}, prompt variant "${variant}".`,
+    description: `Alice (${MODELS.alice}) and Bob (${MODELS.bob})${judge ? `, steered by Chaser (${judge})` : ''}, run ${logId}, prompt variant "${variant}".`,
     source: basename(path),
     run: { id: runId, title: `${runId}: ${task?.text ?? ''}`, condition: null, notes, actors, records, claims },
   };

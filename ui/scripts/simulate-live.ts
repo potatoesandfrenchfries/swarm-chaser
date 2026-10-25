@@ -1,7 +1,7 @@
 // Rehearse the live view without real agents: stream a run from the made-up example into local/live/,
 // one step at a time, labelled as simulated (provenance "synthetic").
 //
-//   npm run live:simulate                      the "with a Judge" run, a step every 1.8 s
+//   npm run live:simulate                      the "with Chaser" run, a step every 1.8 s
 //   npm run live:simulate -- --run planted --interval 1200 --loop
 //
 // A real agent run streams the same way by appending lines to local/live/<name>.jsonl (see server/live.ts).

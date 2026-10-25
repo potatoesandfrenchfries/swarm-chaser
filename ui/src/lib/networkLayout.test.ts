@@ -6,7 +6,7 @@ import { networkLayout } from './networkLayout.ts';
 const monitored = fixture.runs.find((r) => r.id === 'monitored')! as Run;
 
 describe('skeleton-constrained agent layout', () => {
-  it('keeps shared actors in exactly the same place with or without the Judge', () => {
+  it('keeps shared actors in exactly the same place with or without Chaser', () => {
     const a = networkLayout(monitored);
     const b = networkLayout(fixture.runs.find((r) => r.id === 'planted')! as Run);
     for (const actor of monitored.actors.filter((a) => a.kind === 'agent')) expect(a.points.get(`actor:${actor.id}`)).toEqual(b.points.get(`actor:${actor.id}`));

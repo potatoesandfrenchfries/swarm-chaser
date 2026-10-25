@@ -69,15 +69,15 @@ export function AgentNetwork({ run, replay, reduced, speed, animate = false, sel
   const entities = useMemo<EntityNode[]>(() => {
     const nodes: EntityNode[] = run.actors.map((actor) => {
       const state = replay.actors[actor.id], judge = actor.kind !== 'agent';
-      const status = judge ? state.checked.length ? 'Claim checked' : 'Judge' : state.corrected.length ? 'Corrected' : state.said.length ? 'Passed claim' : state.exposed.length ? 'Received claim' : 'Agent';
-      return { id: `actor:${actor.id}`, type: 'entity', position: base.points.get(`actor:${actor.id}`)!, origin: [.5, .255], extent: judge ? [[200, base.agentBottom + 15], [base.width - 200, base.height]] : [[225, base.agentTop], [base.width - 225, base.agentBottom]], data: { run, ref: { kind: 'actor', id: actor.id }, name: judge ? 'Judge' : actor.name, status, active: replay.current?.actor === actor.id || replay.current?.target?.id === actor.id, tone: state.corrected.length ? 'judge' : state.exposed.length || state.said.length ? 'claim' : 'neutral', select } };
+      const status = judge ? state.checked.length ? 'Claim checked' : 'Monitor' : state.corrected.length ? 'Corrected' : state.said.length ? 'Passed claim' : state.exposed.length ? 'Received claim' : 'Agent';
+      return { id: `actor:${actor.id}`, type: 'entity', position: base.points.get(`actor:${actor.id}`)!, origin: [.5, .255], extent: judge ? [[200, base.agentBottom + 15], [base.width - 200, base.height]] : [[225, base.agentTop], [base.width - 225, base.agentBottom]], data: { run, ref: { kind: 'actor', id: actor.id }, name: actor.name, status, active: replay.current?.actor === actor.id || replay.current?.target?.id === actor.id, tone: state.corrected.length ? 'judge' : state.exposed.length || state.said.length ? 'claim' : 'neutral', select } };
     });
     for (const record of run.records) {
       const state = replay.records[record.id];
       const status = state.effects.length ? `${state.effects.length} action${state.effects.length === 1 ? '' : 's'} ${record.kind === 'honeypot' ? 'captured' : 'executed'}` : record.planted ? 'Planted note' : ['sandbox', 'honeypot'].includes(record.kind) ? 'No actions yet' : 'Evidence';
       nodes.push({ id: `record:${record.id}`, type: 'entity', draggable: false, origin: [.5, .5], position: base.points.get(`record:${record.id}`)!, data: { run, ref: { kind: 'record', id: record.id }, name: record.label, status, active: replay.current?.target?.id === record.id, tone: state.lastChange === 'diverted' || state.lastChange === 'claim' ? 'danger' : state.lastChange === 'allowed' ? 'safe' : record.planted ? 'claim' : 'neutral', select } });
     }
-    if (!run.actors.some((a) => a.kind !== 'agent')) nodes.push({ id: 'seat', type: 'entity', draggable: false, origin: [.5, .5], position: base.points.get('seat')!, data: { run, ref: null, name: 'Judge is off', status: 'Actions run directly', tone: 'neutral', active: false, select } });
+    if (!run.actors.some((a) => a.kind !== 'agent')) nodes.push({ id: 'seat', type: 'entity', draggable: false, origin: [.5, .5], position: base.points.get('seat')!, data: { run, ref: null, name: 'Chaser is off', status: 'Actions run directly', tone: 'neutral', active: false, select } });
     return nodes;
   }, [run, replay, base, select]);
   const [nodes, setNodes, onNodesChange] = useNodesState<EntityNode>(entities);
@@ -138,6 +138,6 @@ export function AgentNetwork({ run, replay, reduced, speed, animate = false, sel
     }} nodesConnectable={false} edgesFocusable={false} deleteKeyCode={null} panActivationKeyCode={null} fitView fitViewOptions={FIT_OPTIONS} minZoom={.08} maxZoom={2} zoomOnScroll={false} preventScrolling={false} onPaneClick={() => {}}>
       <svg><defs>{['neutral', 'claim', 'judge', 'danger', 'safe'].map((tone) => <marker key={tone} id={`flow-arrow-${tone}`} viewBox="0 0 8 8" markerWidth="7" markerHeight="7" refX="7" refY="4" orient="auto"><path className={`tone-${tone}`} d="M0 0 8 4 0 8Z" fill="var(--route-color)" /></marker>)}</defs></svg>
     </ReactFlow><div className="graph-zoom"><button type="button" className="chip-btn" disabled={!ready} aria-label="Zoom out" onClick={() => instance?.zoomOut({ duration: reduced ? 0 : 180 })}><Minus size={16} /></button><button type="button" className="chip-btn" disabled={!ready} aria-label="Fit graph to view" onClick={() => instance?.fitView({ ...FIT_OPTIONS, duration: reduced ? 0 : 220 })}><Maximize size={16} /></button><button type="button" className="chip-btn" disabled={!ready} aria-label="Zoom in" onClick={() => instance?.zoomIn({ duration: reduced ? 0 : 180 })}><Plus size={16} /></button></div></div>
-    <footer className="chat-foot network-caption"><span className="chat-count">{replay.current?.summary ?? 'Sandbox left · agents in the middle · Judge below · honeypot right'}</span><small className="small muted">Drag agents to arrange · pan or pinch to explore</small></footer>
+    <footer className="chat-foot network-caption"><span className="chat-count">{replay.current?.summary ?? 'Sandbox left · agents in the middle · Chaser below · honeypot right'}</span><small className="small muted">Drag agents to arrange · pan or pinch to explore</small></footer>
   </section>;
 }

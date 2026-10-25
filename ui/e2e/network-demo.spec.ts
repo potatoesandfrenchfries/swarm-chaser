@@ -122,7 +122,7 @@ test('show/hide animates smoothly, survives interruption, and persists across Ch
   await expect(page.locator('.network-card')).toHaveAttribute('data-step', '0');
   await page.getByRole('radio', { name: 'With Chaser', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Hide graph', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: 'Inspect Judge', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Inspect Chaser', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Hide graph', exact: true }).click();
   await expect(page.locator('.network-card')).toHaveCount(0);
   await page.getByRole('radio', { name: 'Without Chaser', exact: true }).click();
