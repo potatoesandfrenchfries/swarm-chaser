@@ -28,7 +28,7 @@ describe('parseLive', () => {
   });
 
   it('refuses a line whose item is not nested under its type', () => {
-    const p = parseLive([header, JSON.stringify({ type: 'event', ...events[0] })].join('\n'), 'test');
+    const p = parseLive([header, JSON.stringify({ ...events[0], type: 'event' })].join('\n'), 'test');
     expect(p.problems[0]).toMatch(/should look like/);
     expect(p.bundle?.runs[0].events).toEqual([]);
   });
