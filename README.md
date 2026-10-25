@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/banner.svg" alt="claim-spread: a planted note passes from agent to agent until VETO blocks it" width="100%"></p>
+
 # claim-spread
 
 Do false claims spread between AI agents, and what stops them?
@@ -118,6 +120,7 @@ when a prompt's text changes but its hash does not. To change a prompt, add a ne
 | `tests/` | pytest suite, including repo hygiene checks such as no committed databases |
 | `config.toml` | Model choices, prices, the spend cap and frozen prompt hashes |
 | `slice.toml` | Which village episodes the pipeline runs on |
+| `assets/` | The README banner. Its blobs reuse the agent avatars from `ui/src/components/Avatar.tsx` |
 | `temps_ideas/` | Early research notes: candidate datasets, reference repos and ideas |
 | `local/`, `cache/` | Git-ignored. Village text, built databases, live runs and the model cache |
 

@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-label="claim-spread: a planted note passes from agent to agent until VETO blocks it">
+  <!-- Blob outlines and colours are the agent avatars in ui/src/components/Avatar.tsx. -->
+  <defs>
+    <g id="eyes">
+      <rect x="15" y="13" width="4.4" height="9" rx="2.2" transform="rotate(-16 17.2 17.5)"/>
+      <rect x="23" y="12" width="4.4" height="9" rx="2.2" transform="rotate(-16 25.2 16.5)"/>
+    </g>
+    <g id="badge">
+      <rect width="22" height="26" rx="4" fill="#ffe27a" stroke="#e0b100" stroke-width="2"/>
+      <path d="M6 9H16M6 14H16M6 19H12" stroke="#b38c00" stroke-width="2" stroke-linecap="round"/>
+    </g>
+  </defs>
+
+  <rect width="1280" height="420" rx="28" fill="#f6f6f8"/>
+
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="72" y="180" font-size="68" font-weight="700" letter-spacing="-2" fill="#141413">claim-spread</text>
+    <text x="74" y="236" font-size="26" fill="#6b6b70">Do false claims spread between AI agents,</text>
+    <text x="74" y="272" font-size="26" fill="#6b6b70">and what stops them?</text>
+    <text x="74" y="336" font-size="17" font-weight="600" letter-spacing="2" fill="#0645b1">AI VILLAGE · SANDBOX · VETO</text>
+  </g>
+
+  <!-- The claim's path: yellow while it spreads, blue where VETO meets it. -->
+  <path d="M708 214 Q 760 150 818 140 Q 905 170 948 274 Q 1000 150 1066 140" fill="none" stroke="#e0b100" stroke-width="4" stroke-dasharray="2 11" stroke-linecap="round"/>
+  <path d="M1066 140 Q 1140 170 1168 252" fill="none" stroke="#0645b1" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- The planted note. -->
+  <g transform="translate(640 150) rotate(-8)">
+    <rect width="76" height="92" rx="9" fill="#ffe27a" stroke="#e0b100" stroke-width="3"/>
+    <path d="M16 26H60M16 42H60M16 58H44" stroke="#b38c00" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- Agents the claim reached, each now holding a copy. -->
+  <g transform="translate(770 92) scale(2.4)">
+    <path d="M21 5C31 5 36 13 36 22C36 31 29 36 20 36C11 36 5 30 5 22C5 13 11 5 21 5Z" fill="#e8509b"/>
+    <use href="#eyes" fill="#2a1414"/>
+  </g>
+  <use href="#badge" x="848" y="84"/>
+
+  <g transform="translate(900 222) scale(2.4)">
+    <path d="M9 34C5 34 4 31 6 27L17 8C19 4 23 4 25 8L35 27C37 31 35 34 31 34Z" fill="#8b5cf6"/>
+    <use href="#eyes" fill="#2a1414" transform="translate(0 7)"/>
+  </g>
+  <use href="#badge" x="976" y="226"/>
+
+  <g transform="translate(1018 90) scale(2.4)">
+    <path d="M10 31C5 31 3 26 6 22C3 18 6 12 12 14C13 8 20 7 23 11C27 7 34 9 33 15C38 16 38 23 34 25C37 29 33 34 28 32C25 36 19 36 16 33C14 35 11 34 10 31Z" fill="#e5484d"/>
+    <use href="#eyes" fill="#2a1414" transform="translate(0 1)"/>
+  </g>
+  <use href="#badge" x="1100" y="82"/>
+
+  <!-- VETO, the outside model, stops it. -->
+  <g transform="translate(1120 236) scale(2.4)">
+    <path d="M7 34C7 18 12 6 22 6C31 6 35 14 35 23C35 29 33 34 28 34Z" fill="#141413"/>
+    <use href="#eyes" fill="#ffffff" transform="translate(0 2)"/>
+  </g>
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <rect x="1084" y="338" width="172" height="38" rx="19" fill="#0645b1"/>
+    <text x="1170" y="363" font-size="17" font-weight="600" fill="#ffffff" text-anchor="middle">VETO blocked it</text>
+  </g>
+</svg>
