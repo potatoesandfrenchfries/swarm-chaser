@@ -32,10 +32,10 @@ export function Inspector({ bundle, run, state, className = '' }: { bundle: Bund
   return (
     <aside className={`inspector glass ${className}`} aria-label="Inspector">
       <div className="inspector-head">
-        <span>{follow ? 'Following the replay' : 'Selected'}</span>
+        <span>{follow ? 'Latest step' : 'Selected'}</span>
         {!follow && (
           <button type="button" className="text-btn" onClick={() => dispatch({ type: 'select', selection: null })}>
-            Follow the replay
+            Clear
           </button>
         )}
       </div>
@@ -133,17 +133,17 @@ function EventPanel({ run, state, ev, goTo, select }: { run: Run; state: ReplayS
       <p className="insp-summary">{ev.summary}</p>
 
       {ev.text && (
-        <Section title={ev.tool ? 'Exactly what came back' : 'Exactly what was said'}>
+        <Section title={ev.tool ? 'Tool output' : 'Message'}>
           <blockquote className={`verbatim ${claim && carriesClaim(ev) ? 'has-claim' : ''}`}>{markClaim(ev.text, claim?.text ?? null, carriesClaim(ev) || ev.type === 'read')}</blockquote>
         </Section>
       )}
       {ev.verdict && (
-        <Section title="The Judge’s verdict">
+        <Section title="VETO’s verdict">
           <StatusTag status={ev.verdict} />
         </Section>
       )}
       {ev.evidence.length > 0 && (
-        <Section title="The evidence">
+        <Section title="Evidence">
           {ev.evidence.map((q, i) => {
             const rec = run.records.find((r) => r.id === q.record);
             return (
@@ -340,26 +340,23 @@ function RunPanel({ bundle, run, select }: { bundle: Bundle; run: Run; select: (
           {n}
         </p>
       ))}
-      <Section title="Data">
-        <dl className="facts">
-          {run.provenance !== 'synthetic' && (
-            <>
-              <dt>Kind</dt>
-              <dd>
-                {PROVENANCE_WORD[run.provenance]}. {PROVENANCE_NOTE[run.provenance]}
-              </dd>
-            </>
-          )}
-          <dt>Source</dt>
-          <dd>{bundle.source}</dd>
-        </dl>
-      </Section>
+      {run.provenance !== 'synthetic' && (
+        <Section title="Data">
+          <dl className="facts">
+            <dt>Kind</dt>
+            <dd>
+              {PROVENANCE_WORD[run.provenance]}. {PROVENANCE_NOTE[run.provenance]}
+            </dd>
+            <dt>Source</dt>
+            <dd>{bundle.source}</dd>
+          </dl>
+        </Section>
+      )}
       {run.claims.length > 0 && (
-        <Section title="Claims in this run">
+        <Section title={run.claims.length === 1 ? 'The claim' : 'Claims'}>
           {run.claims.map((c) => (
             <button key={c.id} type="button" className="claim-chip" onClick={() => select({ kind: 'claim', id: c.id })}>
               <mark>{c.text}</mark>
-              <span className="muted">{c.id}</span>
             </button>
           ))}
         </Section>

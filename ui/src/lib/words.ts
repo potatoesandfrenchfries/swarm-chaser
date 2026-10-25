@@ -1,4 +1,3 @@
-import type { Channel } from '../model/replay.ts';
 import type { Basis, ClaimStatus, EventType, Provenance, Run } from '../model/types.ts';
 
 export const EVENT_WORD: Record<EventType, string> = {
@@ -12,27 +11,9 @@ export const EVENT_WORD: Record<EventType, string> = {
   check: 'Checks the facts',
   intervene: 'Steps in',
   correct: 'Corrects it',
-  submit: 'Asks the Judge',
+  submit: 'Asks VETO',
   allow: 'Lets it through',
   divert: 'Sends it to the honeypot',
-};
-
-export const KIND_WORD = { agent: 'Agent', monitor: 'Judge', checker: 'Checker' } as const;
-
-export const CHANNEL_WORD: Record<Channel, string> = {
-  read: 'read',
-  task: 'task hand-off',
-  claim: 'carries the claim',
-  dispute: 'dispute',
-  action: 'action',
-  'claim-action': 'action on the claim',
-  'corrective-action': 'action after a correction',
-  check: 'evidence check',
-  intervene: 'monitor intervention',
-  correct: 'correction',
-  submit: 'asks the Judge',
-  allow: 'let through to the sandbox',
-  divert: 'sent to the honeypot',
 };
 
 export const STATUS_WORD: Record<ClaimStatus, string> = {
@@ -50,7 +31,7 @@ export const BASIS_WORD: Record<Basis, string> = {
 
 export const PROVENANCE_WORD: Record<Provenance, string> = {
   synthetic: 'Made-up example',
-  recorded: 'Recorded replay',
+  recorded: 'Recorded run',
   live: 'Live',
 };
 
@@ -76,10 +57,6 @@ export function monogram(name: string): string {
   const parts = name.split(/[\s-_.]+/).filter(Boolean);
   if (parts.length > 1) return (parts[0][0] + parts[1][0]).toUpperCase();
   return name.slice(0, 2).replace(/^./, (c) => c.toUpperCase());
-}
-
-export function stepLabel(cursor: number, total: number): string {
-  return cursor < 0 ? `Before step 1 of ${total}` : `Step ${cursor + 1} of ${total}`;
 }
 
 /**
