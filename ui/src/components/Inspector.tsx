@@ -342,10 +342,14 @@ function RunPanel({ bundle, run, select }: { bundle: Bundle; run: Run; select: (
       ))}
       <Section title="Data">
         <dl className="facts">
-          <dt>Kind</dt>
-          <dd>
-            {PROVENANCE_WORD[run.provenance]}. {PROVENANCE_NOTE[run.provenance]}
-          </dd>
+          {run.provenance !== 'synthetic' && (
+            <>
+              <dt>Kind</dt>
+              <dd>
+                {PROVENANCE_WORD[run.provenance]}. {PROVENANCE_NOTE[run.provenance]}
+              </dd>
+            </>
+          )}
           <dt>Source</dt>
           <dd>{bundle.source}</dd>
         </dl>

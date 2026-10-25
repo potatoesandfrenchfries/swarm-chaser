@@ -40,10 +40,12 @@ export function CompareView({ bundle }: { bundle: Bundle }) {
       <header className="compare-head">
         <div>
           <p className="compare-kicker">
-            <span className={`provenance provenance--${bundle.provenance}`}>
-              <i aria-hidden="true" />
-              {PROVENANCE_WORD[bundle.provenance]}
-            </span>
+            {bundle.provenance !== 'synthetic' && (
+              <span className={`provenance provenance--${bundle.provenance}`}>
+                <i aria-hidden="true" />
+                {PROVENANCE_WORD[bundle.provenance]}
+              </span>
+            )}
             <span className="muted">
               {bundle.experiment ? `${runs.length} versions, one run each` : `${runs.length} runs`}
             </span>
