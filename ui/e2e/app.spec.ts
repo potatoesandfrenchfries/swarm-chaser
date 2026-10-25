@@ -1,3 +1,5 @@
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import bundle from '../data/synthetic/merch-launch.json' with { type: 'json' };
 
@@ -52,38 +54,139 @@ test.describe('results page', () => {
   });
 });
 
+/** Writes a finished run of the made-up example into local/live/, as the task runner would, and returns its id. */
+function writeFinishedRun(runId: 'baseline' | 'planted' | 'monitored') {
+  const run = bundle.runs.find((r) => r.id === runId)!;
+  const { events, ...rest } = run;
+  const id = `e2e-${runId}-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+  const dir = join(import.meta.dirname, '..', '..', 'local', 'live');
+  mkdirSync(dir, { recursive: true });
+  const lines = [
+    { type: 'header', schema: 'claim-spread/live@1', title: run.title, task: { id: 'shirt-launch', setup: runId }, provenance: 'synthetic', run: rest },
+    ...events.map((event) => ({ type: 'event', event })),
+    { type: 'end' },
+  ];
+  const file = join(dir, `${id}.jsonl`);
+  writeFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  test.info().attach('live file', { body: file });
+  return { id, file };
+}
+
 test.describe('dashboard', () => {
-  test('the overview lists the alerts and opens one in the activity log', async ({ page }) => {
+  test.skip(Boolean(process.env.E2E_BASE_URL), "writes runs into the server's local/live/");
+  const files: string[] = [];
+  test.afterAll(() => files.forEach((f) => rmSync(f, { force: true })));
+
+  test('sets up a run in three steps and starts it', async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto(url('view=overview'));
-    const alerts = page.getByRole('region', { name: 'Alerts' });
-    await expect(alerts.getByRole('button')).toHaveCount(4);
-    await alerts.getByRole('button', { name: /VETO sends the email to the honeypot/ }).click();
-    await expect(page).toHaveURL(/view=activity.*run=monitored.*sel=event(%3A|:)m-e07/);
-    await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('Email captured by the honeypot');
+    await page.goto('/?view=playground');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('New run');
+    await expect(page.getByRole('radio', { name: /Planted note/ })).toContainText('orders@supplier-help.example');
+    await expect(page.getByRole('radio', { name: /Your own task/ })).toBeDisabled();
+    await page.getByRole('radio', { name: /No attack/ }).click();
+    await expect(page.getByRole('switch')).toBeDisabled();
+    await page.getByRole('radio', { name: /Planted note/ }).click();
+    await expect(page.getByRole('switch')).toBeChecked();
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await expect(page).toHaveURL(/view=chat.*live=shirt-launch-monitored-/);
+    await expect(page.locator('.chat-log .msg').first()).toContainText('Agent 2', { timeout: 5000 });
+    await expect(page.locator('.chat-typing')).toContainText('The agents are working');
+    const live = new URL(page.url()).searchParams.get('live');
+    files.push(join(import.meta.dirname, '..', '..', 'local', 'live', `${live}.jsonl`));
     expect(errors).toEqual([]);
   });
 
-  test('the activity log filters to alerts and shows what VETO decided', async ({ page }) => {
+  test('a finished run gives its verdict and offers the run with VETO switched', async ({ page }) => {
+    const errors = watchErrors(page);
+    const { id, file } = writeFinishedRun('planted');
+    files.push(file);
+    await page.goto(`/?view=chat&live=${id}`);
+    const verdict = page.getByRole('status');
+    await expect(verdict).toContainText('Leaked');
+    await expect(verdict.getByRole('button', { name: 'Run again with VETO' })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('clicking a message opens what it was based on, and Escape closes it', async ({ page }) => {
+    const errors = watchErrors(page);
+    const { id, file } = writeFinishedRun('monitored');
+    files.push(file);
+    await page.goto(`/?view=chat&live=${id}`);
+    await expect(page.getByRole('status')).toContainText('Blocked');
+    await page.locator('.msg-btn', { hasText: 'Checked against' }).click();
+    const detail = page.getByRole('complementary', { name: 'Inspector' });
+    await expect(detail).toContainText('Evidence');
+    await expect(detail.locator('.ev-mark--contradicts').first()).toHaveText('Orders: orders@northside-print.example');
+    await page.keyboard.press('Escape');
+    await expect(detail).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('New run goes back to the set-up', async ({ page }) => {
+    const { id, file } = writeFinishedRun('baseline');
+    files.push(file);
+    await page.goto(`/?view=chat&live=${id}`);
+    await expect(page.getByRole('status')).toContainText('Nothing to stop');
+    await page.getByRole('button', { name: 'New run' }).first().click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('New run');
+  });
+});
+
+test.describe('dashboard pages', () => {
+  test('the overview counts what VETO did and opens a run', async ({ page }) => {
+    const errors = watchErrors(page);
+    await page.goto('/?view=overview');
+    await expect(page.getByRole('region', { name: 'Does VETO work' })).toContainText('attacks blocked');
+    const { file } = writeFinishedRun('monitored');
+    try {
+      await page.reload();
+      await page.getByRole('region', { name: 'Runs' }).locator('tbody tr').filter({ hasText: 'Blocked' }).first().click();
+      await expect(page).toHaveURL(/view=chat.*live=/);
+      await expect(page.getByRole('status')).toContainText('Blocked');
+    } finally {
+      rmSync(file, { force: true });
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test('a long alert list is paged', async ({ page }) => {
+    const errors = watchErrors(page);
+    const made = [writeFinishedRun('monitored'), writeFinishedRun('monitored'), writeFinishedRun('planted'), writeFinishedRun('monitored'), writeFinishedRun('planted')];
+    try {
+      await page.goto('/?view=overview');
+      const alerts = page.getByRole('region', { name: 'Alerts' });
+      await expect(alerts.locator('.alert-list li')).toHaveCount(5);
+      await alerts.getByRole('button', { name: 'Next page' }).click();
+      await expect(alerts.locator('.pager')).toContainText('6–');
+    } finally {
+      made.forEach((m) => rmSync(m.file, { force: true }));
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test('an alert opens the log of its run', async ({ page }) => {
+    const errors = watchErrors(page);
+    const { file } = writeFinishedRun('monitored');
+    try {
+      await page.goto('/?view=overview');
+      await page.getByRole('region', { name: 'Alerts' }).getByRole('button', { name: /Attack, with VETO/ }).first().click();
+      await expect(page).toHaveURL(/view=activity/);
+      await expect(page.locator('.log tbody tr.is-alert').first()).toBeVisible();
+    } finally {
+      rmSync(file, { force: true });
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test('the log narrows to alerts, and a row opens its detail', async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto(url('view=activity&run=monitored'));
-    await page.getByRole('radio', { name: 'Alerts' }).click();
+    await page.getByLabel(/Only alerts/).check();
     const rows = page.locator('.log tbody tr');
     await expect(rows).toHaveCount(2);
     await expect(rows.nth(1)).toContainText('Blocked');
-    expect(errors).toEqual([]);
-  });
-
-  test('a new task streams into the activity log', async ({ page }) => {
-    test.skip(Boolean(process.env.E2E_BASE_URL), 'writes a run into the server\'s local/live/');
-    const errors = watchErrors(page);
-    await page.goto(url('view=overview'));
-    await page.getByRole('button', { name: 'New task' }).click();
-    await page.getByLabel(/Attack, VETO on/).check();
-    await page.getByRole('button', { name: 'Run task' }).click();
-    await expect(page).toHaveURL(/view=activity.*live=shirt-launch-monitored-/);
-    await expect(page.locator('.log tbody tr').first()).toContainText('Agent 2 asks Agent 1', { timeout: 5000 });
-    await expect(page.locator('.page-head .outcome')).toHaveText('Running');
+    await rows.nth(1).click();
+    await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('Email captured by the honeypot');
     expect(errors).toEqual([]);
   });
 
@@ -101,45 +204,32 @@ test.describe('dashboard', () => {
     expect(errors).toEqual([]);
   });
 
-  test('an event with no evidence and an unknown selection do not break the inspector', async ({ page }) => {
+  test('an unknown selection does not break the inspector', async ({ page }) => {
     const errors = watchErrors(page);
-    await page.goto(url('view=graph&run=monitored&sel=event:m-e01'));
-    const insp = page.getByRole('complementary', { name: 'Inspector' });
-    await expect(insp).toContainText('Agent 1 reads a note that was planted on purpose.');
-    await expect(insp).not.toContainText('Evidence');
     await page.goto(url('view=graph&run=monitored&sel=event:does-not-exist'));
-    await expect(insp).toContainText('Attack, with VETO');
+    await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('Attack, with VETO');
     expect(errors).toEqual([]);
   });
 
-  test('switching views keeps the run and the selection', async ({ page }) => {
+  test('the tabs keep the run and the selection', async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto(url('view=graph&run=monitored&sel=actor:agent-3'));
-    await page.keyboard.press('1');
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Overview');
-    await page.keyboard.press('3');
-    await expect(page).toHaveURL(/view=graph.*run=monitored.*sel=actor(%3A|:)agent-3/);
-    await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('Agent 3');
+    await page.getByRole('tab', { name: 'Log' }).click();
+    await expect(page).toHaveURL(/view=activity.*run=monitored.*sel=actor(%3A|:)agent-3/);
+    await page.getByRole('tab', { name: 'Chat' }).click();
+    await expect(page.getByRole('status')).toContainText('Blocked');
     expect(errors).toEqual([]);
   });
 
-  test('the session list loads that run', async ({ page }) => {
-    const errors = watchErrors(page);
-    await page.goto(url('view=graph&run=monitored'));
-    await page.getByRole('radio', { name: /Attack, no VETO/ }).click();
-    await expect(page).toHaveURL(/run=planted/);
-    await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('Agent 3 reports back, repeating the claim.');
-    expect(errors).toEqual([]);
-  });
-
-  test('without Neo4j the explorer says so and draws the same records from the bundle', async ({ page, baseURL }) => {
+  test('without Neo4j the graph says so and draws the same records from the bundle', async ({ page }) => {
     test.skip(Boolean(process.env.E2E_BASE_URL), 'only meaningful on a server without Neo4j');
     const errors = watchErrors(page);
     await page.goto(url('view=graph&run=monitored'));
+    await expect(page.locator('.explorer-panel')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Controls' }).click();
     await expect(page.locator('.source')).toContainText('Neo4j offline');
     await expect(page.getByText('22 nodes · 48 links')).toBeVisible();
     expect(errors).toEqual([]);
-    expect(baseURL).toBeTruthy();
   });
 });
 
