@@ -60,6 +60,7 @@ export const STACK: { name: string; detail: string; marks: { file: string; label
     detail: 'scikit-learn, NumPy, pandas, joblib, PyTorch',
     marks: [
       { file: 'python', label: 'Python' },
+      { file: 'scikit-learn', label: 'scikit-learn' },
       { file: 'numpy', label: 'NumPy' },
       { file: 'pandas', label: 'pandas' },
       { file: 'pytorch', label: 'PyTorch' },
