@@ -2,7 +2,7 @@ import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
 import { Maximize } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Inspector } from '../components/Inspector.tsx';
-import { REL_TYPES, nodeKey, projectRun, projectionAt, type GNode, type Projection, type RelType } from '../model/graph.ts';
+import { REL_TYPES, nodeKey, projectRun, type GNode, type Projection, type RelType } from '../model/graph.ts';
 import { deriveState } from '../model/replay.ts';
 import type { Bundle, Run } from '../model/types.ts';
 import { useStore, type Selection } from '../state/store.tsx';
@@ -14,13 +14,13 @@ type Source =
   | { kind: 'not-loaded'; uri: string };
 
 const REL_WORD: Record<RelType, string> = {
-  DID: 'did (actor → event)',
-  TO: 'to (event → actor)',
-  ON: 'on (event → record)',
-  ABOUT: 'about (event → claim)',
-  CITES: 'cites evidence',
-  DEPENDS_ON: 'depends on (event → cause)',
-  FIRST_STATED_IN: 'first stated in',
+  DID: 'Did',
+  TO: 'Sent to',
+  ON: 'Acted on',
+  ABOUT: 'About the claim',
+  CITES: 'Cites evidence',
+  DEPENDS_ON: 'Caused by',
+  FIRST_STATED_IN: 'First said in',
 };
 
 /** Neo4j when it is connected and holds this run; otherwise the same projection computed from the bundle, labelled as such. */
@@ -70,7 +70,6 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
   }, [state.live]);
   const { source, projection } = useGraphSource(bundle, run, retry, liveTick);
   const [types, setTypes] = useState<Set<RelType>>(() => new Set(REL_TYPES.filter((t) => t !== 'FIRST_STATED_IN')));
-  const [uptoCursor, setUptoCursor] = useState(true);
   const [search, setSearch] = useState('');
   const [layout, setLayout] = useState<'lanes' | 'force'>('force');
   const [trace, setTrace] = useState<{ dir: 'up' | 'down'; from: string } | null>(null);
@@ -78,10 +77,7 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
   const cy = useRef<Core | null>(null);
   const rs = useMemo(() => deriveState(run, state.cursor), [run, state.cursor]);
 
-  const visible = useMemo(() => {
-    const p = uptoCursor ? projectionAt(projection, state.cursor) : projection;
-    return { ...p, edges: p.edges.filter((e) => types.has(e.type)) };
-  }, [projection, uptoCursor, state.cursor, types]);
+  const visible = useMemo(() => ({ ...projection, edges: projection.edges.filter((e) => types.has(e.type)) }), [projection, types]);
 
   const selectedKey = state.selection ? nodeKey(bundle.id, run.id, state.selection.id) : rs.current ? nodeKey(bundle.id, run.id, rs.current.id) : null;
 
@@ -96,9 +92,9 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
       maxZoom: 3,
       boxSelectionEnabled: false,
       style: [
-        { selector: 'node', style: { label: 'data(name)', color: v('--ink'), 'font-family': 'Geist Variable, sans-serif', 'font-size': 11, 'text-valign': 'bottom', 'text-margin-y': 6, 'text-outline-color': v('--bg'), 'text-outline-width': 3, 'background-color': '#2a2723', 'border-width': 1.5, 'border-color': v('--ink-muted'), width: 34, height: 34 } },
+        { selector: 'node', style: { label: 'data(name)', color: v('--ink'), 'font-family': 'Geist Variable, sans-serif', 'font-size': 11, 'text-valign': 'bottom', 'text-margin-y': 6, 'text-outline-color': v('--bg'), 'text-outline-width': 3, 'background-color': '#ffffff', 'border-width': 1.5, 'border-color': v('--ink-muted'), width: 34, height: 34 } },
         { selector: 'node[label="Actor"][kind="monitor"]', style: { shape: 'diamond', width: 40, height: 40, 'border-color': v('--ink') } },
-        { selector: 'node[label="Record"]', style: { shape: 'round-rectangle', width: 62, height: 24, 'font-family': 'Geist Mono Variable, monospace', 'font-size': 10, 'text-valign': 'center', 'text-margin-y': 0, 'background-color': '#24221f' } },
+        { selector: 'node[label="Record"]', style: { shape: 'round-rectangle', width: 62, height: 24, 'font-family': 'Geist Variable, sans-serif', 'font-size': 10, 'text-valign': 'center', 'text-margin-y': 0, 'background-color': '#ffffff' } },
         { selector: 'node[label="Record"][?planted]', style: { 'border-color': v('--claim') } },
         { selector: 'node[label="Claim"]', style: { shape: 'tag', width: 40, height: 22, 'background-color': v('--claim'), 'border-width': 0, color: v('--claim-ink'), 'text-valign': 'center', 'text-margin-y': 0, 'text-outline-width': 0, 'font-weight': 700 } },
         { selector: 'node[label="Event"]', style: { width: 14, height: 14, 'border-width': 0, 'font-size': 9, color: v('--ink-muted'), 'background-color': v('--ink-faint') } },
@@ -109,8 +105,8 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
         { selector: 'node[channel="check"]', style: { shape: 'diamond', width: 18, height: 18, 'background-color': v('--ink-muted') } },
         { selector: 'node[verdict="contradicted"]', style: { 'background-color': v('--contradicted') } },
         { selector: 'node[verdict="supported"]', style: { 'background-color': v('--supported') } },
-        { selector: 'edge', style: { width: 1.2, 'line-color': '#4b463f', 'target-arrow-color': '#4b463f', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.7, 'curve-style': 'bezier', opacity: 0.85 } },
-        { selector: 'edge[type="DID"]', style: { 'line-color': '#3a3631', 'target-arrow-shape': 'none' } },
+        { selector: 'edge', style: { width: 1.2, 'line-color': '#c9c9cf', 'target-arrow-color': '#c9c9cf', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.7, 'curve-style': 'bezier', opacity: 0.85 } },
+        { selector: 'edge[type="DID"]', style: { 'line-color': '#e4e4e8', 'target-arrow-shape': 'none' } },
         { selector: 'edge[type="ABOUT"], edge[type="FIRST_STATED_IN"]', style: { 'line-color': v('--claim'), 'target-arrow-color': v('--claim'), 'line-style': 'dashed', 'line-dash-pattern': [4, 4], opacity: 0.35 } },
         { selector: 'edge[type="CITES"]', style: { 'line-color': v('--contradicted'), 'target-arrow-color': v('--contradicted'), 'line-style': 'dashed' } },
         { selector: 'edge[type="CITES"][stance="supports"]', style: { 'line-color': v('--supported'), 'target-arrow-color': v('--supported') } },
@@ -174,7 +170,7 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
     } else if (trace) {
       hits = traceFrom(inst, trace.from, trace.dir);
     } else if (state.selection && selectedKey) {
-      // Only an explicit selection dims the rest; following the replay just marks the current event.
+      // Only an explicit selection dims the rest; with none, the current event is just marked.
       const n = inst.getElementById(selectedKey);
       if (n.nonempty()) hits = n.closedNeighborhood();
     }
@@ -203,26 +199,24 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
           <span className="sr-only">Search the graph</span>
           <input type="search" placeholder="Search names, text, ids" value={search} onChange={(e) => setSearch(e.target.value)} />
         </label>
-        <fieldset>
-          <legend>Relationships</legend>
-          {REL_TYPES.map((t) => (
-            <label key={t} className="check">
-              <input type="checkbox" checked={types.has(t)} onChange={() => toggleType(t)} />
-              <span>{REL_WORD[t]}</span>
-              <span className="count">{projection.edges.filter((e) => e.type === t).length}</span>
-            </label>
-          ))}
-        </fieldset>
-        <label className="check">
-          <input type="checkbox" checked={uptoCursor} onChange={(e) => setUptoCursor(e.target.checked)} />
-          <span>Only events up to replay step {state.cursor + 1}</span>
-        </label>
+        <details className="rel-list">
+          <summary>Links shown</summary>
+          <fieldset>
+            {REL_TYPES.map((t) => (
+              <label key={t} className="check">
+                <input type="checkbox" checked={types.has(t)} onChange={() => toggleType(t)} />
+                <span>{REL_WORD[t]}</span>
+                <span className="count">{projection.edges.filter((e) => e.type === t).length}</span>
+              </label>
+            ))}
+          </fieldset>
+        </details>
         <div className="explorer-row">
           <label className="picker">
             <span className="sr-only">Layout</span>
             <select value={layout} onChange={(e) => setLayout(e.target.value as 'lanes' | 'force')}>
-              <option value="force">Force-directed</option>
-              <option value="lanes">Lanes: time by actor</option>
+              <option value="force">Free layout</option>
+              <option value="lanes">Timeline</option>
             </select>
           </label>
           <button type="button" className="icon-btn" aria-label="Fit graph to view" onClick={() => cy.current?.fit(undefined, 50)}>
@@ -231,17 +225,17 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
         </div>
         <div className="explorer-row">
           <button type="button" className="btn btn--ghost btn--sm" disabled={!selectedEvent} onClick={() => selectedEvent && setTrace(trace?.dir === 'up' ? null : { dir: 'up', from: nodeKey(bundle.id, run.id, selectedEvent) })} aria-pressed={trace?.dir === 'up'}>
-            Trace causes
+            Causes
           </button>
           <button type="button" className="btn btn--ghost btn--sm" disabled={!selectedEvent} onClick={() => selectedEvent && setTrace(trace?.dir === 'down' ? null : { dir: 'down', from: nodeKey(bundle.id, run.id, selectedEvent) })} aria-pressed={trace?.dir === 'down'}>
-            Trace effects
+            Effects
           </button>
         </div>
         <p className="muted small">
-          {visible.nodes.length} nodes, {visible.edges.length} relationships. Click a node to inspect it; the replay keeps the same selection.
+          {visible.nodes.length} nodes · {visible.edges.length} links
         </p>
         <details className="rel-list">
-          <summary>Relationship list ({visible.edges.length})</summary>
+          <summary>All links ({visible.edges.length})</summary>
           <ul>
             {visible.edges.map((e, i) => {
               const from = visible.nodes.find((n) => n.key === e.from);
@@ -284,9 +278,8 @@ function SourceBadge({ source, onRetry }: { source: Source; onRetry: () => void 
     <div className="source source--offline">
       <p>
         <i aria-hidden="true" />
-        {source.kind === 'not-loaded' ? 'Neo4j is up but this run is not loaded.' : 'Neo4j offline.'}
+        {source.kind === 'not-loaded' ? 'Neo4j: run not loaded' : 'Neo4j offline'}
       </p>
-      <p className="muted small">{source.kind === 'not-loaded' ? 'Run npm run neo4j:load in ui/. ' : `${source.reason} `}Showing the same records drawn from the bundle file.</p>
       <button type="button" className="text-btn small" onClick={onRetry}>
         Check again
       </button>

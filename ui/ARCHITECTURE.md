@@ -1,10 +1,10 @@
-# ARCHITECTURE: claim-spread UI
+# ARCHITECTURE: VETO UI
 
-One canonical event model, one replay function, three views plus a landing page (`HomeView`, the default when the URL names no view). The replay, the comparison, the graph explorer and the Neo4j copy all read the same records; none of them has its own dataset.
+One canonical event model and one fold over it (`deriveState`). Two frames read it. The landing site (`LandingView`, `DemoView`, `ResultsView`, under `SiteHeader`) pitches the product; the dashboard (`OverviewView`, `ActivityView`, `ExplorerView`, under `Sidebar`) is where a user starts tasks and reads what VETO decided. The Neo4j copy reads the same records; no view has its own dataset.
 
 ```
-data/synthetic/*.json ─┐                         ┌─ ReplayView (stage, caption, meter, dock, inspector)
-local/replay/*.json  ──┼─ server/bundles.ts ──► /api/bundles ─► store.tsx ─► deriveState(run, cursor) ─┼─ CompareView (stage ×N, metrics)
+data/synthetic/*.json ─┐                         ┌─ DemoView, ResultsView, OverviewView (claimMetrics, decisionOf)
+local/replay/*.json  ──┼─ server/bundles.ts ──► /api/bundles ─► store.tsx ─► deriveState(run, cursor) ─┼─ ActivityView (event log, inspector)
   (git-ignored,        │   validateBundle()                     (one reducer,  pure fold               └─ ExplorerView (graph projection)
    real runs)          │                                         URL-synced)                                     ▲
                        └─ server/load-neo4j.ts ─► projectRun() ─► Neo4j ─► /api/neo4j/runs/… ──────────────────────┘
@@ -60,13 +60,13 @@ Channels give each edge one meaning:
 
 Exposure is not belief: a target of a claim-carrying event is *exposed*; only the speaker *said* it.
 
-**Playback.** `store.tsx` holds one reducer: view, bundle, run, cursor, playing, speed, selection, and a `transition` stamp. Only `usePlayback` advances the cursor, with one `setTimeout` keyed on the cursor, so a pause, seek or speed change cancels the pending tick. A seek sets `transition.animate = false`; a step or playback tick sets it to true. Animation (`useTween`) is purely visual: until the pulse lands the stage shows `deriveState(cursor − 1)`, then the derived state of the cursor. Nothing reads animation progress to decide what happened.
+**State.** `store.tsx` holds one reducer: view, bundle, run, cursor, selection and the live connection. A run opens on its last step; selecting an event in the activity log or the inspector moves the cursor to it, and the arrow keys step it. The demo chat keeps its own clock and does not touch the store.
 
-**URL.** `?view=home|replay|compare|graph&bundle=&run=&step=&sel=kind:id` mirrors the state (no `view` means the landing page), so a link reproduces the exact frame and selection, and switching views keeps both.
+**URL.** `?view=home|demo|results|overview|activity|graph&bundle=&run=&step=&sel=kind:id` mirrors the state (no `view` means the landing page), so a link reproduces the exact selection, and switching views keeps it.
 
 ## 3. Metrics (`src/model/metrics.ts`)
 
-Counted for one claim over `events[0..upTo]`, shown in the meter (to the playhead) and in Compare (to each run's end or the replay step):
+Counted for one claim over `events[0..upTo]` (the whole run by default), shown on the results page, the overview and the session list. `outcomeOf` turns them into one word: Leaked, Blocked or Nothing planted.
 
 | Metric | Definition |
 | --- | --- |
@@ -122,18 +122,18 @@ Provenance is shown in the header, the Compare kicker, the inspector's run panel
 | Concern | Path |
 | --- | --- |
 | Canonical model, validation, replay, metrics, projection | `src/model/` (pure TypeScript, unit-tested in `model.test.ts`) |
-| Shared state, URL sync, playback timer, tweens | `src/state/` |
-| Stage layout (deterministic stream layout, collision-aware record cards) | `src/lib/layout.ts` |
-| Stage, dock and scrubber, caption, claim meter, inspector, glyphs | `src/components/` |
-| Views | `src/views/HomeView.tsx` (landing), `ReplayView.tsx`, `CompareView.tsx`, `ExplorerView.tsx` (lazy, Cytoscape) |
-| Display names | Come from the bundle (`actor.name`: Agent 1–4, Judge); actors with `kind: monitor` are shown as the Judge. Nothing in code hard-codes the synthetic names |
-| API, bundle registry, Neo4j adapter and loader | `server/` (runs inside the Vite dev and preview servers) |
-| End-to-end tests | `e2e/replay.spec.ts` (Playwright, installed Chrome) |
+| What VETO decided per event (blocked, allowed, flagged, leaked) | `src/model/activity.ts` |
+| Reported results, probe scores per layer, attack types, sources | `src/model/results.ts`, `data/whitebox-probe.json` (from `scripts/whitebox-probe.py`) |
+| Shared state and URL sync | `src/state/` |
+| Sidebar, site header, new-task dialog, avatars, inspector, glyphs | `src/components/` |
+| Views | `src/views/`: landing site `LandingView`, `DemoView`, `ResultsView`; dashboard `OverviewView`, `ActivityView`, `ExplorerView` (lazy, Cytoscape) |
+| Display names | Come from the bundle (`actor.name`: Agent 1–4, VETO). Nothing in code hard-codes the synthetic names |
+| API, bundle registry, task runner, Neo4j adapter and loader | `server/` (runs inside the Vite dev and preview servers). `POST /api/tasks` replays a recorded run into `local/live/` until an agent runtime writes there instead |
+| End-to-end tests | `e2e/app.spec.ts` (Playwright, installed Chrome) |
 
 ## 7. Decisions
 
-- **Vite + React 19 + TypeScript, plain CSS tokens; no Tailwind or component kit.** The surface is one bespoke instrument; the tokens in `DESIGN.md` map straight to CSS variables.
-- **Custom SVG stage, Cytoscape for the explorer.** The replay needs exact control of every path and timing. The explorer needs zoom, pan and layouts over arbitrary graphs. Cytoscape is MIT; Neo4j NVL was rejected on the `graph-test` branch for its licence.
+- **Vite + React 19 + TypeScript, plain CSS tokens.** Tailwind utilities and one shadcn button are used on the landing site only; everything else reads the tokens in `src/styles/tokens.css`.
+- **Cytoscape for the explorer.** It needs zoom, pan and layouts over arbitrary graphs. Cytoscape is MIT; Neo4j NVL was rejected on the `graph-test` branch for its licence.
 - **API inside Vite.** One command serves the app, the API and Neo4j access, in dev and in `vite preview`. A separate backend would add a process without adding a capability.
 - **Fonts self-hosted** (`@fontsource-variable/*`) and brand marks self-hosted (`public/logos`, from thesvg.org), so the demo runs without network.
-- **Records are measured, not guessed, in the layout.** The overlap test uses the same card width the CSS gets (`--record-w`).

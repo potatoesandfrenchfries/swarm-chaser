@@ -106,8 +106,3 @@ export function projectRun(bundle: Pick<Bundle, 'id' | 'provenance'>, run: Run):
   return { bundle: bundle.id, run: run.id, provenance: bundle.provenance, nodes, edges };
 }
 
-/** The part of a projection visible at a replay cursor: events after it (and claims not yet stated) are dropped. */
-export function projectionAt(p: Projection, cursor: number): Projection {
-  const keep = new Set(p.nodes.filter((n) => n.label === 'Actor' || n.label === 'Record' || (n.seq !== null && n.seq <= cursor)).map((n) => n.key));
-  return { ...p, nodes: p.nodes.filter((n) => keep.has(n.key)), edges: p.edges.filter((e) => keep.has(e.from) && keep.has(e.to)) };
-}

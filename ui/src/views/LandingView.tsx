@@ -131,23 +131,11 @@ function SystemDiagram() {
 
 export function LandingView({ bundle }: { bundle: Bundle }) {
   const { dispatch } = useStore();
-  const go = (view: 'replay' | 'compare') => dispatch({ type: 'view', view });
+  const go = (view: 'demo' | 'results') => dispatch({ type: 'view', view });
   const heroRun = bundle.runs.find((r) => r.condition === 'monitored') ?? bundle.runs[0];
 
   return (
-    <div className="acad-page">
-      <header className="acad-header">
-        <div className="acad-header__inner">
-          <span className="acad-logo">VETO</span>
-          <nav className="acad-nav" aria-label="Sections">
-            <a href="#problem">Problem</a>
-            <a href="#method">Method</a>
-            <a href="#data">Data</a>
-          </nav>
-          <Button type="button" onClick={() => go('replay')}>Watch the demo</Button>
-        </div>
-      </header>
-
+    <>
       <main className="acad-main">
         <HeroCollage run={heroRun} />
 
@@ -208,16 +196,16 @@ export function LandingView({ bundle }: { bundle: Bundle }) {
         <section className="acad-cta">
           <h2>See an agent get stopped.</h2>
           <div className="acad-cta__actions">
-            <Button type="button" size="lg" onClick={() => go('replay')}>
+            <Button type="button" size="lg" onClick={() => go('demo')}>
               Watch the demo
               <ArrowRight aria-hidden />
             </Button>
-            <Button type="button" size="lg" variant="outline" onClick={() => go('compare')}>
-              With and without VETO
+            <Button type="button" size="lg" variant="outline" onClick={() => go('results')}>
+              See the results
             </Button>
           </div>
         </section>
       </main>
-    </div>
+    </>
   );
 }

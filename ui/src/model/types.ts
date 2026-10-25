@@ -27,9 +27,9 @@ export type EventType =
   | 'check' // an actor or checker tests a claim against a record
   | 'intervene' // a monitor posts to an actor about a claim
   | 'correct' // an actor states a claim was wrong and gives the replacement
-  | 'submit' // an agent hands a proposed action to the Judge instead of doing it directly
-  | 'allow' // the Judge lets a submitted action through to the sandbox
-  | 'divert'; // the Judge routes a suspicious action to the honeypot instead
+  | 'submit' // an agent hands a proposed action to VETO instead of doing it directly
+  | 'allow' // VETO lets a submitted action through to the sandbox
+  | 'divert'; // VETO routes a suspicious action to the honeypot instead
 
 export type Verdict = 'supported' | 'contradicted' | 'unverifiable';
 export type ClaimStatus = Verdict | 'unchecked';
