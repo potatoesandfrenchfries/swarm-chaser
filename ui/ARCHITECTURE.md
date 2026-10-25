@@ -1,11 +1,11 @@
 # ARCHITECTURE: VETO UI
 
-One canonical event model and one fold over it (`deriveState`). Two frames read it. The landing site (`LandingView`, `DemoView`, `ResultsView`, under `SiteHeader`) pitches the product; the dashboard (`OverviewView`, `ActivityView`, `ExplorerView`, under `Sidebar`) is where a user starts tasks and reads what VETO decided. The Neo4j copy reads the same records; no view has its own dataset.
+One canonical event model and one fold over it (`deriveState`). Two frames read it. The landing site (`LandingView`, `DemoView`, `ResultsView`, under `SiteHeader`) pitches the product; the dashboard (under `Sidebar`) is where a user sets up a run (`PlaygroundView`), watches it and reads what VETO decided (`RunView`, with its Chat, Log and Graph tabs), and sees every run at once (`OverviewView`). The Neo4j copy reads the same records; no view has its own dataset.
 
 ```
-data/synthetic/*.json ─┐                         ┌─ DemoView, ResultsView, OverviewView (claimMetrics, decisionOf)
-local/replay/*.json  ──┼─ server/bundles.ts ──► /api/bundles ─► store.tsx ─► deriveState(run, cursor) ─┼─ ActivityView (event log, inspector)
-  (git-ignored,        │   validateBundle()                     (one reducer,  pure fold               └─ ExplorerView (graph projection)
+data/synthetic/*.json ─┐                         ┌─ DemoView, ResultsView, RunView chat (claimMetrics, decisionOf)
+local/replay/*.json  ──┼─ server/bundles.ts ──► /api/bundles ─► store.tsx ─► deriveState(run, cursor) ─┼─ ActivityView: the Log tab (event log, inspector)
+  (git-ignored,        │   validateBundle()                     (one reducer,  pure fold               └─ ExplorerView: the Graph tab (graph projection)
    real runs)          │                                         URL-synced)                                     ▲
                        └─ server/load-neo4j.ts ─► projectRun() ─► Neo4j ─► /api/neo4j/runs/… ──────────────────────┘
                                                   (same function the explorer uses offline)
@@ -62,11 +62,11 @@ Exposure is not belief: a target of a claim-carrying event is *exposed*; only th
 
 **State.** `store.tsx` holds one reducer: view, bundle, run, cursor, selection and the live connection. A run opens on its last step; selecting an event in the activity log or the inspector moves the cursor to it, and the arrow keys step it. The demo chat keeps its own clock and does not touch the store.
 
-**URL.** `?view=home|demo|results|overview|activity|graph&bundle=&run=&step=&sel=kind:id` mirrors the state (no `view` means the landing page), so a link reproduces the exact selection, and switching views keeps it.
+**URL.** `?view=home|demo|results|overview|playground|chat|activity|graph&bundle=&run=&live=&step=&sel=kind:id` mirrors the state (no `view` means the landing page), so a link reproduces the exact selection, and switching views keeps it.
 
 ## 3. Metrics (`src/model/metrics.ts`)
 
-Counted for one claim over `events[0..upTo]` (the whole run by default), shown on the results page, the overview and the session list. `outcomeOf` turns them into one word: Leaked, Blocked or Nothing planted.
+Counted for one claim over `events[0..upTo]` (the whole run by default), shown on the results page and, through `digestRun` (`src/model/activity.ts`), in the overview and the sidebar's run list. The digest is computed on the server for every listed bundle run and live run, so lists never load whole runs. `outcomeOf` turns them into one word: Leaked, Blocked or Nothing planted.
 
 | Metric | Definition |
 | --- | --- |
@@ -103,6 +103,7 @@ Credentials are read only on the server (`process.env` / `ui/.env`, never `VITE_
 | Synthetic demonstration | `data/synthetic/merch-launch.json` | `synthetic` | Present. Hand-written, three conditions, one run each |
 | Recorded village or sandbox runs | `../local/replay/*.json` (git-ignored, dataset terms) or `REPLAY_DIR` | `recorded` | **No recorded bundle exists yet.** The server lists one as soon as a file appears |
 | Live | — | `live` | Not implemented; no live source exists |
+| Mock sandbox runs | `../local/mock_stats/lab_runs.json` (git-ignored) or `MOCK_STATS_DIR`, written by `python -m stats.mock` on the stats branch | outcome only, no steps | Listed in the overview and counted in its VETO comparison; they cannot be opened. `server/mock.ts` maps the arms: no plant is no attack, a planted claim is an attack without VETO, and the outside model stepping in plays VETO |
 
 Provenance is shown in the header, the Compare kicker, the inspector's run panel and every Neo4j node. If the API fails, the app shows the error and offers the synthetic demo by name; it never substitutes it silently (e2e: "when the server fails …").
 
@@ -125,10 +126,11 @@ Provenance is shown in the header, the Compare kicker, the inspector's run panel
 | What VETO decided per event (blocked, allowed, flagged, leaked) | `src/model/activity.ts` |
 | Reported results, probe scores per layer, attack types, sources | `src/model/results.ts`, `data/whitebox-probe.json` (from `scripts/whitebox-probe.py`) |
 | Shared state and URL sync | `src/state/` |
-| Sidebar, site header, new-task dialog, avatars, inspector, glyphs | `src/components/` |
-| Views | `src/views/`: landing site `LandingView`, `DemoView`, `ResultsView`; dashboard `OverviewView`, `ActivityView`, `ExplorerView` (lazy, Cytoscape) |
+| Sidebar, site header, chat message, avatars, inspector, glyphs | `src/components/` |
+| Views | `src/views/`: landing site `LandingView`, `DemoView`, `ResultsView`; dashboard `OverviewView`, `PlaygroundView` (set-up), `RunView` (header and tabs) with `ActivityView` (Log) and `ExplorerView` (Graph, lazy, Cytoscape) |
+| Starting tasks from the dashboard | `src/state/tasks.ts` (`useTasks`, `useStartRun`) |
 | Display names | Come from the bundle (`actor.name`: Agent 1–4, VETO). Nothing in code hard-codes the synthetic names |
-| API, bundle registry, task runner, Neo4j adapter and loader | `server/` (runs inside the Vite dev and preview servers). `POST /api/tasks` replays a recorded run into `local/live/` until an agent runtime writes there instead |
+| API, bundle registry, task runner, Neo4j adapter and loader | `server/` (runs inside the Vite dev and preview servers). `POST /api/tasks` replays a recorded run into `local/live/` until an agent runtime writes there instead. A run ends with an `{"type":"end"}` line; deleting its file cancels the replay |
 | End-to-end tests | `e2e/app.spec.ts` (Playwright, installed Chrome) |
 
 ## 7. Decisions
