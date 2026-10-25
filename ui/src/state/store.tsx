@@ -4,9 +4,11 @@ import { clampCursor } from '../model/replay.ts';
 import type { Bundle, Run } from '../model/types.ts';
 import { validateBundle, validateLiveBundle } from '../model/validate.ts';
 
-export type View = 'home' | 'replay' | 'compare' | 'graph';
+/** Landing site pages: home, demo, results. Dashboard pages, behind the sidebar: overview, activity, graph. */
+export type View = 'home' | 'demo' | 'results' | 'overview' | 'activity' | 'graph';
+export const SITE_VIEWS: View[] = ['home', 'demo', 'results'];
+const VIEWS: View[] = [...SITE_VIEWS, 'overview', 'activity', 'graph'];
 export type Selection = { kind: 'event' | 'actor' | 'record' | 'claim'; id: string };
-export const SPEEDS = [0.5, 1, 2, 4] as const;
 
 export interface AppState {
   view: View;
@@ -18,11 +20,8 @@ export interface AppState {
   loading: boolean;
   bundleError: string | null;
   runId: string | null;
+  /** The step the inspector reads up to; a run opens on its last step. */
   cursor: number;
-  playing: boolean;
-  speed: number;
-  /** Bumped on every cursor move; `animate` is false for seeks so scrubbing never animates. */
-  transition: { nonce: number; animate: boolean; kind?: 'step' | 'play' };
   selection: Selection | null;
   /** Set while watching a live run. `follow` keeps the playhead on the newest step. */
   live: LiveState | null;
@@ -41,16 +40,11 @@ export type Action =
   | { type: 'bundles'; list: BundleSummary[] }
   | { type: 'bundles-failed'; error: string }
   | { type: 'open-bundle'; id: string }
-  | { type: 'bundle-loaded'; bundle: Bundle; runId?: string | null; cursor?: number }
+  | { type: 'bundle-loaded'; bundle: Bundle; runId?: string | null; cursor?: number; fromUrl?: boolean }
   | { type: 'bundle-failed'; error: string }
   | { type: 'run'; runId: string; cursor?: number }
   | { type: 'seek'; cursor: number }
   | { type: 'step'; delta: number }
-  | { type: 'tick' }
-  | { type: 'play' }
-  | { type: 'pause' }
-  | { type: 'toggle' }
-  | { type: 'speed'; speed: number }
   | { type: 'select'; selection: Selection | null }
   | { type: 'open-live'; id: string }
   | { type: 'live-snapshot'; bundle: Bundle; problems: string[] }
@@ -64,11 +58,12 @@ export function currentRun(s: Pick<AppState, 'bundle' | 'runId'>): Run | null {
   return s.bundle?.runs.find((r) => r.id === s.runId) ?? null;
 }
 
-function moved(s: AppState, cursor: number, animate: boolean, extra: Partial<AppState> = {}, kind: 'step' | 'play' = 'step'): AppState {
+function moved(s: AppState, cursor: number, extra: Partial<AppState> = {}): AppState {
   const run = currentRun(s);
-  const c = run ? clampCursor(run, cursor) : -1;
-  return { ...s, ...extra, cursor: c, transition: { nonce: s.transition.nonce + 1, animate, kind } };
+  return { ...s, ...extra, cursor: run ? clampCursor(run, cursor) : -1 };
 }
+
+const lastStep = (r: Run | undefined) => (r ? r.events.length - 1 : -1);
 
 export function reducer(s: AppState, a: Action): AppState {
   const run = currentRun(s);
@@ -81,41 +76,30 @@ export function reducer(s: AppState, a: Action): AppState {
     case 'bundles-failed':
       return { ...s, listError: a.error };
     case 'open-bundle':
-      return { ...s, bundleId: a.id, loading: true, bundleError: null, playing: false, live: null };
+      return { ...s, bundleId: a.id, loading: true, bundleError: null, live: null };
     case 'bundle-loaded': {
       const runId = a.runId && a.bundle.runs.some((r) => r.id === a.runId) ? a.runId : defaultRun(a.bundle);
-      const next = { ...s, bundle: a.bundle, bundleId: a.bundle.id, loading: false, bundleError: null, runId, playing: false };
-      return moved(next, a.cursor ?? -1, false, { selection: a.cursor === undefined ? null : s.selection });
+      const next = { ...s, bundle: a.bundle, bundleId: a.bundle.id, loading: false, bundleError: null, runId };
+      // A selection survives only when this load came from a link that named it.
+      return moved(next, a.cursor ?? lastStep(a.bundle.runs.find((r) => r.id === runId)), { selection: a.fromUrl ? s.selection : null });
     }
     case 'bundle-failed':
-      return { ...s, loading: false, bundleError: a.error, playing: false };
+      return { ...s, loading: false, bundleError: a.error };
     case 'run':
-      return moved({ ...s, runId: a.runId }, a.cursor ?? -1, false, { playing: false, selection: null });
+      return moved({ ...s, runId: a.runId }, a.cursor ?? lastStep(s.bundle?.runs.find((r) => r.id === a.runId)), { selection: null });
     case 'seek': {
-      const next = moved(s, a.cursor, false, { playing: false });
+      const next = moved(s, a.cursor);
       return s.live ? { ...next, live: { ...s.live, follow: next.cursor >= last } } : next;
     }
     case 'step': {
-      const next = moved(s, s.cursor + a.delta, true, { playing: false });
+      const next = moved(s, s.cursor + a.delta);
       return s.live ? { ...next, live: { ...s.live, follow: next.cursor >= last } } : next;
     }
-    case 'tick':
-      if (!s.playing || s.cursor >= last) return { ...s, playing: false };
-      return moved(s, s.cursor + 1, true, {}, 'play');
-    case 'play':
-      if (!run) return s;
-      // Playing from the end starts over; a selection would fight the replay, so it is released.
-      return s.cursor >= last ? moved(s, -1, false, { playing: true, selection: null }) : { ...s, playing: true, selection: null };
-    case 'pause':
-      return { ...s, playing: false };
-    case 'toggle':
-      return reducer(s, { type: s.playing ? 'pause' : 'play' });
-    case 'speed':
-      return { ...s, speed: a.speed };
     case 'select':
-      return { ...s, selection: a.selection, playing: a.selection ? false : s.playing };
+      return { ...s, selection: a.selection };
     case 'open-live':
-      return { ...s, view: s.view === 'home' ? 'replay' : s.view, loading: true, bundleError: null, playing: false, selection: null, live: { id: a.id, status: 'connecting', follow: true, problems: [], neo4j: 'unknown' } };
+      // A live run opens in the dashboard's activity log, which follows a growing run.
+      return { ...s, view: SITE_VIEWS.includes(s.view) ? 'activity' : s.view, loading: true, bundleError: null, selection: null, live: { id: a.id, status: 'connecting', follow: true, problems: [], neo4j: 'unknown' } };
     case 'live-snapshot': {
       if (!s.live) return s;
       const next = reducer({ ...s, live: null }, { type: 'bundle-loaded', bundle: a.bundle, runId: a.bundle.runs[0].id, cursor: a.bundle.runs[0].events.length - 1 });
@@ -134,8 +118,8 @@ export function reducer(s: AppState, a: Action): AppState {
       const problems = validateLiveBundle({ ...s.bundle, runs: [r] });
       if (problems.length) return { ...s, live: { ...s.live, problems: [...s.live.problems, problems[0]] } };
       const next: AppState = { ...s, bundle: { ...s.bundle, runs: [r] }, live: { ...s.live, status: 'live' } };
-      // Following: ride the newest step and animate it, as if playing.
-      return a.kind === 'event' && s.live.follow ? moved(next, r.events.length - 1, true, {}, 'play') : next;
+      // Following: ride the newest step.
+      return a.kind === 'event' && s.live.follow ? moved(next, r.events.length - 1) : next;
     }
     case 'live-status':
       return s.live ? { ...s, live: { ...s.live, status: a.status } } : s;
@@ -144,7 +128,7 @@ export function reducer(s: AppState, a: Action): AppState {
     case 'live-problem':
       return s.live ? { ...s, live: { ...s.live, problems: [...s.live.problems, a.message] } } : s;
     case 'live-follow':
-      return s.live ? moved({ ...s, live: { ...s.live, follow: true } }, last, false) : s;
+      return s.live ? moved({ ...s, live: { ...s.live, follow: true } }, last) : s;
   }
 }
 
@@ -172,7 +156,7 @@ export function readUrl(search = location.search): UrlState {
   const [kind, ...rest] = (sel ?? '').split(':');
   return {
     // No view in the URL means a first visit: start on the landing page.
-    view: view === 'compare' || view === 'graph' || view === 'replay' ? view : 'home',
+    view: VIEWS.includes(view as View) ? (view as View) : 'home',
     live: p.get('live'),
     bundle: p.get('bundle'),
     run: p.get('run'),
@@ -208,9 +192,6 @@ export function initialState(url = readUrl()): AppState {
     bundleError: null,
     runId: url.run,
     cursor: -1,
-    playing: false,
-    speed: 1,
-    transition: { nonce: 0, animate: false },
     selection: url.sel,
     live: null,
   };
@@ -261,7 +242,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const url = firstUrl.current;
         firstUrl.current = null;
         const fromUrl = url && url.bundle === id;
-        dispatch({ type: 'bundle-loaded', bundle, runId: fromUrl ? url.run : null, cursor: fromUrl && url.step !== null ? url.step : undefined });
+        dispatch({ type: 'bundle-loaded', bundle, runId: fromUrl ? url.run : null, cursor: fromUrl && url.step !== null ? url.step : undefined, fromUrl: Boolean(fromUrl) });
       })
       .catch((e) => {
         if (!ctrl.signal.aborted) dispatch({ type: 'bundle-failed', error: (e as Error).message });
