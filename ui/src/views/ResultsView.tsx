@@ -31,7 +31,7 @@ export function ResultsView() {
       <section className="dash-kpis" aria-label="Headline numbers">
         <Kpi value={HEADLINE.whiteboxAuc.toFixed(2)} label="White-box AUC" note="on attack types it never saw" dark />
         <Kpi value={pct(HEADLINE.whiteboxAccuracy)} label="White-box accuracy" note="malicious vs benign steps" />
-        <Kpi value={HEADLINE.blackboxAuc.toFixed(2)} label="Visible actions only" note="AUC from the transcript alone" />
+        <Kpi value={HEADLINE.blackboxAuc.toFixed(2)} label="Black-box probe" note="AUC from the transcript alone" />
         <Kpi value={String(ATTACK_TYPES.length)} label="Attack types" note="from exfiltration to supply chain" />
       </section>
 
@@ -157,7 +157,7 @@ function Card({ title, note, children }: { title: string; note?: string; childre
 function MonitorBars() {
   const bars = [
     { label: 'Coin flip', value: HEADLINE.chance, tone: 'faint' },
-    { label: 'Visible actions only', value: HEADLINE.blackboxAuc, tone: 'mid' },
+    { label: 'Black-box probe', value: HEADLINE.blackboxAuc, tone: 'mid' },
     { label: 'White-box probe', value: HEADLINE.whiteboxAuc, tone: 'strong' },
   ];
   const x = (v: number) => ((v - 0.4) / 0.6) * 100;

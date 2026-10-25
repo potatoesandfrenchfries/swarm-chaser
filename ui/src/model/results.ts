@@ -17,7 +17,7 @@ export const HEADLINE = {
 /** One row per agent model and monitor. Add a row when a model's numbers are final. */
 export const MODEL_RESULTS = [
   { model: 'Qwen2.5-3B-Instruct', monitor: 'White-box probe', auc: 1.0, accuracy: 0.92, split: 'unseen attack types' },
-  { model: 'Qwen2.5-3B-Instruct', monitor: 'Visible actions only', auc: 0.7, accuracy: null, split: 'unseen attack types' },
+  { model: 'Qwen2.5-3B-Instruct', monitor: 'Black-box probe', auc: 0.7, accuracy: null, split: 'unseen attack types' },
 ];
 
 export interface ProbeLayer {
