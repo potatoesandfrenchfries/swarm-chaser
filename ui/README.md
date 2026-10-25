@@ -4,7 +4,7 @@ The **Demo** opens as the original large, animated agent chat. **Show graph** ad
 
 The dashboard offers run setup, an overview and each run's **Chat / Log / Graph** tabs. The Graph tab opens the same React Flow graph beside the original chat. Data explorer opens the Neo4j property graph, using the bundle when the database is offline.
 
-The bundled data is a **made-up example**, written by hand and labelled as such everywhere it appears. See `DEMO.md` for the walkthrough, `ARCHITECTURE.md` for the model and data flow, and `DESIGN.md` for the visual system.
+The bundled data is a **made-up example**, written by hand. See `DEMO.md` for the walkthrough, `ARCHITECTURE.md` for the model and data flow, and `DESIGN.md` for the visual system.
 
 ## Run
 

@@ -58,9 +58,9 @@ function LoadState() {
       <div className="center-state" role="alert">
         <h1>{state.listError ? 'The app could not reach its server.' : 'This example could not be opened.'}</h1>
         <p>{state.listError ?? state.bundleError}</p>
-        <p className="muted">Start it with npm run dev in ui/. Or open the built-in made-up example, which works without the server.</p>
+        <p className="muted">Start it with npm run dev in ui/. Or open the built-in example, which works without the server.</p>
         <button type="button" className="btn" onClick={openSynthetic}>
-          Open the made-up example
+          Open the built-in example
         </button>
       </div>
     );

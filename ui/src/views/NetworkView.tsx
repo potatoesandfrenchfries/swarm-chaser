@@ -16,7 +16,7 @@ export function NetworkView({ bundle, run }: { bundle: Bundle; run: Run }) {
   const replay = useMemo(() => deriveState(run, state.cursor), [run, state.cursor]);
   const detail = state.selection ? <Inspector bundle={bundle} run={run} state={replay} /> : undefined;
   return <div className="dashboard-network">
-    <div className="network-view-head"><p className="small muted">{bundle.provenance === 'synthetic' ? 'Made-up example' : 'Run network'} <span>· sandbox left / honeypot right</span></p>
+    <div className="network-view-head"><p className="small muted">Run network <span>· sandbox left / honeypot right</span></p>
       <div className="runs" role="group" aria-label="Graph representation"><button type="button" aria-pressed={!data} onClick={() => setData(false)}>Agent network</button><button type="button" aria-pressed={data} onClick={() => setData(true)}>Data explorer</button></div>
     </div>
     {data ? <Suspense fallback={<p>Preparing the data explorer…</p>}><ExplorerView bundle={bundle} run={run} /></Suspense> : <NetworkReplay key={`${bundle.id}:${run.id}`} run={run} claimId={focusClaimOf(bundle)} detail={detail} controller={{

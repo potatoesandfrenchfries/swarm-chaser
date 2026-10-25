@@ -231,11 +231,11 @@ test.describe('dashboard pages', () => {
 });
 
 test.describe('failures', () => {
-  test('when the server fails, the made-up example is offered by name, never substituted', async ({ page }) => {
+  test('when the server fails, the built-in example is offered by name, never substituted', async ({ page }) => {
     await page.route('**/api/bundles', (r) => r.fulfill({ status: 500, body: '{"error":"boom"}' }));
     await page.goto('/');
     await expect(page.getByRole('alert')).toContainText('The app could not reach its server.');
-    await page.getByRole('button', { name: 'Open the made-up example' }).click();
+    await page.getByRole('button', { name: 'Open the built-in example' }).click();
     await expect(page.getByRole('heading', { level: 1 })).toContainText('See what an AI agent does');
   });
 

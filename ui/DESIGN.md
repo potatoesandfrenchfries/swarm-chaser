@@ -10,7 +10,7 @@ Use a quiet plain background. No graph-paper texture, index labels, large eyebro
 
 Routes have rounded orthogonal corners and avoid node labels. A finite travelling dot and source/arrival emphasis explain each new event. Pause, rewind, seek and rapid selection cancel stale animations. Reduced motion shows the same state immediately. Use existing semantic colours: claim yellow, Judge/correction blue, intercepted red, allowed green; words and arrowheads carry meaning too.
 
-Synthetic data is explicitly labelled as a made-up example. No invented confidence, activations or connected Neo4j state. A lost stream retains received messages and does not imply completion. One cursor drives chat, graph and details. Selecting a node opens its details only on request; the conversation remains the primary surface.
+No invented confidence, activations or connected Neo4j state. A lost stream retains received messages and does not imply completion. One cursor drives chat, graph and details. Selecting a node opens its details only on request; the conversation remains the primary surface.
 
 Verify demo and dashboard at desktop and phone widths; chat/graph synchronisation, toggling during playback, pause/resume, actual packet motion, zoom/fit/drag/reset, keyboard access, reduced motion, incoming stream events and connection failures. Documentation should describe the implemented interface.
 

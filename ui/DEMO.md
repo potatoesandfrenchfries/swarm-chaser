@@ -13,4 +13,4 @@ Say early: **“This is a made-up example replayed on a timer, not live model ca
 
 The dashboard Graph uses the same graph and chat, following incoming events together. Pause live holds both at the current step; Follow latest catches up. A lost connection keeps received records and does not imply completion. Data explorer retains the optional Neo4j property graph and explicit offline fallback.
 
-Space toggles playback; arrows step; Home/End jump. Native form and graph keyboard controls keep their own keys. Reduced motion shows completed states immediately and removes travel. If the server fails, the app offers the built-in made-up example explicitly.
+Space toggles playback; arrows step; Home/End jump. Native form and graph keyboard controls keep their own keys. Reduced motion shows completed states immediately and removes travel. If the server fails, the app offers the built-in example explicitly.

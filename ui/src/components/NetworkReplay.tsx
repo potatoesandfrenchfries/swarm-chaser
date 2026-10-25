@@ -90,7 +90,7 @@ export function NetworkReplay({ run, onVersion, controller, detail, headerAction
     <div ref={graph.workspace} className={`replay-workspace${graph.present ? ' has-network' : ''}`}>
       {graph.present && <AgentNetwork run={run} replay={replay} reduced={reduced} animate={motion || following} speed={speed} selection={selection} onSelect={(node, element) => { trigger.current = element; setPlaying(false); controller?.live?.pause(); select(node); }} />}
       <section ref={graph.chat} className="chat" aria-label={run.condition === 'planted' ? 'Without Chaser' : run.condition === 'monitored' ? 'With Chaser' : 'Agent conversation'}>
-        <header className="chat-head"><span className="chat-channel"><Hash size={16} aria-hidden="true" />shirt-launch{!controller && <span className="replay-provenance">Made-up example</span>}</span><div className="replay-actions">{headerActions}<button type="button" className="chip-btn" aria-pressed={visible} onClick={() => setVisible(!visible)}><Network size={15} />{visible ? 'Hide graph' : 'Show graph'}</button></div></header>
+        <header className="chat-head"><span className="chat-channel"><Hash size={16} aria-hidden="true" />shirt-launch</span><div className="replay-actions">{headerActions}<button type="button" className="chip-btn" aria-pressed={visible} onClick={() => setVisible(!visible)}><Network size={15} />{visible ? 'Hide graph' : 'Show graph'}</button></div></header>
         <div className="chat-body" ref={scroller} data-motion={!reduced && (motion || following)}>
           <ol className="chat-log" role="log" aria-live="polite" aria-relevant="additions">{replay.applied.map((e) => <ChatMessage key={e.id} e={e} run={run} />)}</ol>
           {next && typing && <p className="chat-typing"><Avatar run={run} actorId={next.actor} size={22} /><span className="dots" aria-hidden="true"><i /><i /><i /></span>{actorName(run, next.actor)} is typing</p>}
@@ -115,7 +115,7 @@ function NodeDetails({ selection, run, events, onSeek }: { selection: NetworkSel
   const related = events.filter((e) => (selection.kind === 'actor' && e.actor === selection.id) || (e.target?.kind === selection.kind && e.target.id === selection.id));
   const touched = related.length > 0;
   return <div className="network-node-detail"><h3>{actor?.name ?? record?.label}</h3>
-    <p>{actor?.role ?? (record?.planted ? 'This file was planted as part of the synthetic scenario.' : 'A record in the agent environment.')}</p>
+    <p>{actor?.role ?? (record?.planted ? 'This file was planted as part of the scenario.' : 'A record in the agent environment.')}</p>
     {record?.content && (touched ? <blockquote className="record-well">{record.content}</blockquote> : <p className="network-wait">This record has not been read or checked at this step.</p>)}
     <h4>Events through this step</h4>{related.length ? <ol>{related.map((e) => <li key={e.id}><button type="button" onClick={() => onSeek(e.seq)}><span>{String(e.seq + 1).padStart(2, '0')}</span>{e.summary}</button></li>)}</ol> : <p className="network-wait">No activity yet.</p>}
   </div>;
