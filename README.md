@@ -53,28 +53,6 @@ PYTHONPATH=src uv run python -m report.build local/page_data.json local/site/ind
 
 ## How it fits together
 
-```
-  AI Village export (Hugging Face, gated)
-          │
-          ▼
-  ingest/   one slice of episodes ──► local/slice.sqlite   rows(agent, model, ts, text, room)
-          │
-          ▼
-  extract/  chunks ──LLM──► claims, each with a verbatim quote
-          │
-          ▼
-  check/    claim + same agent's record ±1 day ──LLM A, LLM B──► supported / contradicted / unverifiable
-          │
-          ├──► spread/   later rows by agents who could have seen it ──► repeated / corrected
-          ├──► eval/     checker validation, decision curve, forecaster
-          ▼
-  report/   one JSON bundle ──► static results page (inline SVG, no script)
-
-  Sandbox (Docker)                                         Web app (ui/)
-  whitebox/  agents on one board, a probe on one agent     live runs ──► local/live/*.jsonl ──► SSE
-  sandbox/   outside model answers each round, scores      landing site, dashboard, run replay
-```
-
 ![architecture](image.png)
 All model calls go through `src/llm/client.py`. It caches every answer in `cache/llm.sqlite` and
 refuses any call that would exceed the spend cap. A rerun reads the cached answers, so it costs
