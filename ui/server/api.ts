@@ -9,7 +9,7 @@ import { join } from 'node:path';
 type Next = (err?: unknown) => void;
 
 /**
- * Tasks the dashboard can start. Each set-up is one combination of attack and VETO the dashboard can
+ * Tasks the dashboard can start. Each set-up is one combination of attack and Chaser the dashboard can
  * pick, and names the recorded run that is replayed for it until an agent runtime is connected.
  */
 export const TASKS = [

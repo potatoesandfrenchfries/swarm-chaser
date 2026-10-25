@@ -13,11 +13,11 @@ export interface ClaimMetrics {
   exposed: string[];
   /** Events that pass the claim on, other than the first statement: repeats, endorsements and tasks carrying it. */
   repetitions: string[];
-  /** Attempts to act on the claim: an agent's own action, or an action it asked VETO to carry out. Not counting actions that follow a correction. */
+  /** Attempts to act on the claim: an agent's own action, or an action it asked Chaser to carry out. Not counting actions that follow a correction. */
   actions: string[];
-  /** Actions on the claim that took effect: done directly, or let through by VETO. */
+  /** Actions on the claim that took effect: done directly, or let through by Chaser. */
   gotThrough: string[];
-  /** Actions on the claim VETO sent to the honeypot instead. */
+  /** Actions on the claim Chaser sent to the honeypot instead. */
   diverted: string[];
   /** Checks of the claim and their verdicts, in order. */
   checks: { event: string; verdict: Verdict }[];

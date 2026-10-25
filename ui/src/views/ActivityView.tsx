@@ -8,7 +8,7 @@ import type { Bundle, ReplayEvent, Run } from '../model/types.ts';
 import { actorName, nodeName } from '../lib/words.ts';
 import { useStore } from '../state/store.tsx';
 
-/** The run as a log: every step, who did it, what it touched and what VETO decided, with alerts marked. */
+/** The run as a log: every step, who did it, what it touched and what Chaser decided, with alerts marked. */
 export function ActivityView({ bundle, run }: { bundle: Bundle; run: Run }) {
   const { state, dispatch } = useStore();
   const [alertsOnly, setAlertsOnly] = useState(false);
@@ -35,7 +35,7 @@ export function ActivityView({ bundle, run }: { bundle: Bundle; run: Run }) {
               <th>Agent</th>
               <th>What happened</th>
               <th>Tool</th>
-              <th>VETO</th>
+              <th>Chaser</th>
             </tr>
           </thead>
           <tbody>

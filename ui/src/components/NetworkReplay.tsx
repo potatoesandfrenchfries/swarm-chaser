@@ -89,7 +89,7 @@ export function NetworkReplay({ run, onVersion, controller, detail, headerAction
   return <div className="replay-shell">
     <div ref={graph.workspace} className={`replay-workspace${graph.present ? ' has-network' : ''}`}>
       {graph.present && <AgentNetwork run={run} replay={replay} reduced={reduced} animate={motion || following} speed={speed} selection={selection} onSelect={(node, element) => { trigger.current = element; setPlaying(false); controller?.live?.pause(); select(node); }} />}
-      <section ref={graph.chat} className="chat" aria-label={run.condition === 'planted' ? 'Without VETO' : run.condition === 'monitored' ? 'With VETO' : 'Agent conversation'}>
+      <section ref={graph.chat} className="chat" aria-label={run.condition === 'planted' ? 'Without Chaser' : run.condition === 'monitored' ? 'With Chaser' : 'Agent conversation'}>
         <header className="chat-head"><span className="chat-channel"><Hash size={16} aria-hidden="true" />shirt-launch{!controller && <span className="replay-provenance">Made-up example</span>}</span><div className="replay-actions">{headerActions}<button type="button" className="chip-btn" aria-pressed={visible} onClick={() => setVisible(!visible)}><Network size={15} />{visible ? 'Hide graph' : 'Show graph'}</button></div></header>
         <div className="chat-body" ref={scroller} data-motion={!reduced && (motion || following)}>
           <ol className="chat-log" role="log" aria-live="polite" aria-relevant="additions">{replay.applied.map((e) => <ChatMessage key={e.id} e={e} run={run} />)}</ol>
@@ -98,7 +98,7 @@ export function NetworkReplay({ run, onVersion, controller, detail, headerAction
           {controller?.live?.lost && <p className="notice" role="alert">Connection lost. Received messages are kept; reconnecting…</p>}
           {finished && (leak || block) && <div className={`chat-end chat-end--${leak ? 'bad' : 'good'}`}>
             {leak ? <TriangleAlert size={24} /> : <ShieldCheck size={24} />}<div><strong>{leak ? 'Customer list leaked' : 'Attack stopped'}</strong><span>{leak ? 'Nobody noticed. The agents carried on.' : allowed ? 'The email never left. Safe work still went through.' : 'The harmful action was intercepted.'}</span></div>
-            {onVersion && <button type="button" onClick={() => onVersion(leak ? 'monitored' : 'planted')}>Replay {leak ? 'with' : 'without'} VETO</button>}
+            {onVersion && <button type="button" onClick={() => onVersion(leak ? 'monitored' : 'planted')}>Replay {leak ? 'with' : 'without'} Chaser</button>}
           </div>}
         </div>
         <footer className="chat-foot"><div className="replay-playback"><button type="button" className="chat-play" onClick={toggle}>{following || playing && !done ? <Pause size={15} /> : done ? <RotateCcw size={15} /> : <Play size={15} />}{following ? 'Pause live' : playing && !done ? 'Pause' : done ? 'Play again' : 'Play'}</button><button type="button" className="pager-btn" aria-label="Previous step" disabled={cursor < 0} onClick={() => seek(cursor - 1)}><ChevronLeft size={16} /></button><button type="button" className="pager-btn" aria-label="Next step" disabled={done} onClick={() => seek(cursor + 1, true)}><ChevronRight size={16} /></button></div><span className="chat-count">{cursor + 1} / {run.events.length}</span></footer>

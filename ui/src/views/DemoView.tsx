@@ -12,8 +12,8 @@ export function DemoView({ bundle }: { bundle: Bundle }) {
   return <main className="story">
     <h1 className="story-title">{bundle.description}</h1>
     {run ? <NetworkReplay key={`${bundle.id}:${run.id}`} run={run} onVersion={setVersion} graphVisible={graphVisible} onGraphVisibleChange={setGraphVisible} headerActions={<div className="runs" role="radiogroup" aria-label="Version">
-      <button type="button" role="radio" aria-checked={version === 'planted'} onClick={() => setVersion('planted')}>Without VETO</button>
-      <button type="button" role="radio" aria-checked={version === 'monitored'} onClick={() => setVersion('monitored')}>With VETO</button>
+      <button type="button" role="radio" aria-checked={version === 'planted'} onClick={() => setVersion('planted')}>Without Chaser</button>
+      <button type="button" role="radio" aria-checked={version === 'monitored'} onClick={() => setVersion('monitored')}>With Chaser</button>
     </div>} /> : <p className="notice">This example has no run to play.</p>}
   </main>;
 }

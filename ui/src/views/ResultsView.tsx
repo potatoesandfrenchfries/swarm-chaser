@@ -130,7 +130,7 @@ export function ResultsView({ bundle }: { bundle: Bundle }) {
         <ol className="dash-sources">
           {SOURCES.map((s) => (
             <li key={s.title}>
-              {s.mark && <img className="brand-mark" src={markSrc(s.mark.file)} alt="" title={s.mark.label} />}
+              {s.mark ? <img className="brand-mark" src={markSrc(s.mark.file)} alt="" title={s.mark.label} /> : <span className="brand-mark" aria-hidden="true" />}
               {s.url ? (
                 <a href={s.url} target="_blank" rel="noreferrer">
                   {s.title}

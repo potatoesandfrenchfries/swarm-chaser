@@ -17,9 +17,9 @@ export type Channel =
   | 'check'
   | 'intervene'
   | 'correct'
-  | 'submit' // an agent asks VETO to carry out an action
-  | 'allow' // VETO lets it through to the sandbox
-  | 'divert'; // VETO sends it to the honeypot
+  | 'submit' // an agent asks Chaser to carry out an action
+  | 'allow' // Chaser lets it through to the sandbox
+  | 'divert'; // Chaser sends it to the honeypot
 
 export interface NodeRef {
   kind: 'actor' | 'record';
@@ -126,7 +126,7 @@ export function channelOf(e: ReplayEvent, byId: Map<string, ReplayEvent>): Chann
   }
 }
 
-/** Events whose effect lands on a record: an agent's own action, or VETO passing one on. */
+/** Events whose effect lands on a record: an agent's own action, or Chaser passing one on. */
 export function writesRecord(e: ReplayEvent): boolean {
   return e.type === 'action' || e.type === 'allow' || e.type === 'divert';
 }

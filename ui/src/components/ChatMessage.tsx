@@ -5,7 +5,7 @@ import { Avatar } from './Avatar.tsx';
 
 /**
  * One step of a run as a group-chat message: notes arrive as attachments, tool calls as cards, and
- * VETO's checks and blocks as its own posts. With onSelect it is a button that opens the step's detail.
+ * Chaser's checks and blocks as its own posts. With onSelect it is a button that opens the step's detail.
  */
 export function ChatMessage({ e, run, onSelect, selected = false }: { e: ReplayEvent; run: Run; onSelect?: () => void; selected?: boolean }) {
   const actor = run.actors.find((a) => a.id === e.actor);
@@ -63,7 +63,7 @@ function Body({ e, text, to, record }: { e: ReplayEvent; text: string; to: strin
   if (e.type === 'submit') {
     return (
       <p className="msg-text">
-        {text} <span className="pending">waiting for VETO</span>
+        {text} <span className="pending">waiting for Chaser</span>
       </p>
     );
   }

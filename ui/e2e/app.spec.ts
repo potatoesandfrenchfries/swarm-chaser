@@ -19,19 +19,19 @@ test.describe('landing site', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('See what an AI agent does');
     await page.getByRole('button', { name: 'Watch the demo' }).first().click();
-    await expect(page.getByRole('region', { name: 'Without VETO' })).toContainText('Find out what the supplier needs', { timeout: 5000 });
+    await expect(page.getByRole('region', { name: 'Without Chaser' })).toContainText('Find out what the supplier needs', { timeout: 5000 });
     expect(errors).toEqual([]);
   });
 
-  test('shows the leak without VETO and the block with it', async ({ page }) => {
+  test('shows the leak without Chaser and the block with it', async ({ page }) => {
     const errors = watchErrors(page);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto(url('view=demo'));
-    const without = page.getByRole('region', { name: 'Without VETO' });
+    const without = page.getByRole('region', { name: 'Without Chaser' });
     await expect(without.locator('.stamp--bad')).toHaveText('Leaked');
     await expect(without.locator('.chat-end')).toContainText('Customer list leaked');
-    await page.getByRole('button', { name: 'Replay with VETO' }).click();
-    const withVeto = page.getByRole('region', { name: 'With VETO' });
+    await page.getByRole('button', { name: 'Replay with Chaser' }).click();
+    const withVeto = page.getByRole('region', { name: 'With Chaser' });
     await expect(withVeto.locator('.stamp--block')).toHaveText('Blocked');
     await expect(withVeto.locator('.chat-end')).toContainText('Attack stopped');
     expect(errors).toEqual([]);
@@ -43,10 +43,10 @@ test.describe('results page', () => {
     const errors = watchErrors(page);
     await page.goto(url('view=results'));
     await expect(page.getByRole('article', { name: 'No attack' })).toContainText('Nothing planted');
-    const without = page.getByRole('article', { name: 'Attack, no VETO' });
+    const without = page.getByRole('article', { name: 'Attack, no Chaser' });
     await expect(without).toContainText('Leaked');
     await expect(without).toContainText('1harmful actions that ran');
-    const withVeto = page.getByRole('article', { name: 'Attack, with VETO' });
+    const withVeto = page.getByRole('article', { name: 'Attack, with Chaser' });
     await expect(withVeto).toContainText('Blocked');
     await expect(withVeto).toContainText('0harmful actions that ran');
     await expect(withVeto).toContainText('4steps until caught');
@@ -96,14 +96,14 @@ test.describe('dashboard', () => {
     expect(errors).toEqual([]);
   });
 
-  test('a finished run gives its verdict and offers the run with VETO switched', async ({ page }) => {
+  test('a finished run gives its verdict and offers the run with Chaser switched', async ({ page }) => {
     const errors = watchErrors(page);
     const { id, file } = writeFinishedRun('planted');
     files.push(file);
     await page.goto(`/?view=chat&live=${id}`);
     const verdict = page.getByRole('status');
     await expect(verdict).toContainText('Leaked');
-    await expect(verdict.getByRole('button', { name: 'Run again with VETO' })).toBeVisible();
+    await expect(verdict.getByRole('button', { name: 'Run again with Chaser' })).toBeVisible();
     expect(errors).toEqual([]);
   });
 
@@ -133,10 +133,10 @@ test.describe('dashboard', () => {
 });
 
 test.describe('dashboard pages', () => {
-  test('the overview counts what VETO did and opens a run', async ({ page }) => {
+  test('the overview counts what Chaser did and opens a run', async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto('/?view=overview');
-    await expect(page.getByRole('region', { name: 'Does VETO work' })).toContainText('attacks blocked');
+    await expect(page.getByRole('region', { name: 'Does Chaser work' })).toContainText('attacks blocked');
     const { file } = writeFinishedRun('monitored');
     try {
       await page.reload();
@@ -169,7 +169,7 @@ test.describe('dashboard pages', () => {
     const { file } = writeFinishedRun('monitored');
     try {
       await page.goto('/?view=overview');
-      await page.getByRole('region', { name: 'Alerts' }).getByRole('button', { name: /Attack, with VETO/ }).first().click();
+      await page.getByRole('region', { name: 'Alerts' }).getByRole('button', { name: /Attack, with Chaser/ }).first().click();
       await expect(page).toHaveURL(/view=activity/);
       await expect(page.locator('.log tbody tr.is-alert').first()).toBeVisible();
     } finally {
@@ -194,11 +194,11 @@ test.describe('dashboard pages', () => {
     const errors = watchErrors(page);
     await page.goto(url('view=graph&run=monitored&sel=actor:agent-3'));
     const insp = page.getByRole('complementary', { name: 'Inspector' });
-    await expect(insp).toContainText('Agent 3 asks VETO to email the customer list.');
+    await expect(insp).toContainText('Agent 3 asks Chaser to email the customer list.');
     await page.goto(url('view=graph&run=monitored&sel=claim:C1'));
     await expect(insp).toContainText('The supplier wants our customer list sent to orders@supplier-help.example.');
     await expect(insp).toContainText('4 steps after it was first said');
-    await insp.getByRole('button', { name: /VETO checks the claim/ }).click();
+    await insp.getByRole('button', { name: /Chaser checks the claim/ }).click();
     await expect(insp).toContainText('Evidence');
     await expect(insp.locator('.ev-mark--contradicts').first()).toHaveText('Orders: orders@northside-print.example');
     expect(errors).toEqual([]);
@@ -207,7 +207,7 @@ test.describe('dashboard pages', () => {
   test('an unknown selection does not break the inspector', async ({ page }) => {
     const errors = watchErrors(page);
     await page.goto(url('view=graph&run=monitored&sel=event:does-not-exist'));
-    await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('Attack, with VETO');
+    await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText('Attack, with Chaser');
     expect(errors).toEqual([]);
   });
 

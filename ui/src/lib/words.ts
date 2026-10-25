@@ -27,7 +27,7 @@ export const PROVENANCE_NOTE: Record<Provenance, string> = {
 
 /** A run's set-up in a few words, so runs with the same title can be told apart. */
 export function setupWords(d: { attack: boolean; veto: boolean }): string {
-  return `${d.attack ? 'Attack' : 'No attack'}, ${d.veto ? 'with' : 'without'} VETO`;
+  return `${d.attack ? 'Attack' : 'No attack'}, ${d.veto ? 'with' : 'without'} Chaser`;
 }
 
 export function actorName(run: Run, id: string): string {

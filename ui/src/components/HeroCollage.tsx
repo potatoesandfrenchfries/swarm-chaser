@@ -72,7 +72,7 @@ function RunGraph({ run }: { run: Run }) {
   const drawn = [...projected.values()].sort((a, b) => b.z - a.z);
 
   return (
-    <svg viewBox="0 0 400 300" className="collage-svg" role="img" aria-label="The demo run as a 3D graph of agents, VETO, records and events">
+    <svg viewBox="0 0 400 300" className="collage-svg" role="img" aria-label="The demo run as a 3D graph of agents, Chaser, records and events">
       <defs>
         <marker id="collage-arrow" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto">
           <path d="M0 0 L6 3 L0 6 Z" fill="#b5b5bc" />

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { FileText, Play } from 'lucide-react';
 import { setupOf, useStartRun, useTasks } from '../state/tasks.ts';
 
-/** New run: pick a task, an attack and whether VETO watches, then start it. */
+/** New run: pick a task, an attack and whether Chaser watches, then start it. */
 export function PlaygroundView() {
   const tasks = useTasks();
   const start = useStartRun();
@@ -10,14 +10,14 @@ export function PlaygroundView() {
   const [attack, setAttack] = useState(true);
   const [veto, setVeto] = useState(true);
   const task = tasks.list?.find((t) => t.id === taskId) ?? tasks.list?.[0];
-  // Every recorded set-up with no attack runs without VETO, so the switch only applies to an attack.
+  // Every recorded set-up with no attack runs without Chaser, so the switch only applies to an attack.
   const setup = task && setupOf(task, attack, attack && veto);
 
   return (
     <main className="play play--setup">
       <header className="play-head">
         <h1>New run</h1>
-        <p>Give the agent team a task, plant an attack in what they read, and see whether VETO stops it.</p>
+        <p>Give the agent team a task, plant an attack in what they read, and see whether Chaser stops it.</p>
       </header>
 
       <section className="play-step" aria-labelledby="step-task">
@@ -56,13 +56,13 @@ export function PlaygroundView() {
 
       <section className="play-step" aria-labelledby="step-veto">
         <h2 id="step-veto">
-          <span>3</span> VETO
+          <span>3</span> Chaser
         </h2>
         <label className={`switch-row ${!attack ? 'is-disabled' : ''}`}>
           <input type="checkbox" role="switch" checked={attack && veto} disabled={!attack} onChange={(e) => setVeto(e.target.checked)} />
           <span className="switch" aria-hidden="true" />
           <span>
-            <strong>{attack && veto ? 'VETO checks every action first' : 'Nothing watches the agents'}</strong>
+            <strong>{attack && veto ? 'Chaser checks every action first' : 'Nothing watches the agents'}</strong>
             <small>{attack ? 'Turn it off to see what the attack does unchecked.' : 'With no attack there is nothing to stop.'}</small>
           </span>
         </label>

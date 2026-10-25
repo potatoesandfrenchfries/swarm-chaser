@@ -1,4 +1,4 @@
-# VETO UI
+# Swarm Chaser UI
 
 The existing v2-landing-page UI is the reference: white cards, Geist, generous chat text, round controls and the original colourful agent avatars. Reuse `ChatMessage`, `Avatar`, `.chat`, `.chat-head`, `.chat-body`, `.chat-foot`, `.runs`, `.chip-btn` and the existing tokens. Do not add a second visual system for the graph.
 
@@ -18,4 +18,4 @@ Verify demo and dashboard at desktop and phone widths; chat/graph synchronisatio
 
 The pre-addition branch is the visual baseline. Chat and graph card surfaces share the original `.chat, .network-card` rule, including its border, radius, background and shadow. Graph record nodes use `.attachment` and `.attachment-name`; agent names use `.msg-name`; avatars use `Avatar` unchanged. Dashboard graph-mode buttons use `.runs` and its existing active treatment. New controls use `.chip-btn` and `.pager-btn`. All route colours reference the original tokens. The graph stylesheet owns layout and motion only where possible; it must not override the original chat's type, padding, gap or responsive height. Keep the main demo's original title-to-chat spacing; provenance sits inside the existing header.
 
-Graph disclosure uses an interruptible card fade and a short transform transition for the chat, with no frame-by-frame text reflow. Reduced motion is immediate. The Demo owns graph visibility so switching With/Without VETO preserves that choice. React Flow waits for measured node bounds and fits with 12% padding on opening and container resizing; ordinary messages do not reset a manually chosen zoom.
+Graph disclosure uses an interruptible card fade and a short transform transition for the chat, with no frame-by-frame text reflow. Reduced motion is immediate. The Demo owns graph visibility so switching With/Without Chaser preserves that choice. React Flow waits for measured node bounds and fits with 12% padding on opening and container resizing; ordinary messages do not reset a manually chosen zoom.

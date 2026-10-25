@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const show = async (page: import('@playwright/test').Page) => {
   await page.goto('/?view=demo');
-  await page.getByRole('radio', { name: 'With VETO', exact: true }).click();
+  await page.getByRole('radio', { name: 'With Chaser', exact: true }).click();
   await page.getByRole('slider', { name: 'Replay position' }).fill('-1');
   await page.getByRole('button', { name: 'Show graph', exact: true }).click();
 };
@@ -11,7 +11,7 @@ test('the original chat is primary; graph toggling preserves playback and messag
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/?view=demo');
   await expect(page.locator('.network-card')).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Without VETO', exact: true }).locator('.msg')).toHaveCount(8);
+  await expect(page.getByRole('region', { name: 'Without Chaser', exact: true }).locator('.msg')).toHaveCount(8);
   const chatWidth = (await page.locator('.chat').boundingBox())!.width;
   expect(chatWidth).toBeGreaterThan(700);
   await page.getByRole('button', { name: 'Show graph', exact: true }).click();
@@ -20,7 +20,7 @@ test('the original chat is primary; graph toggling preserves playback and messag
   expect((await page.locator('.chat').boundingBox())!.width).toBeGreaterThan((await page.locator('.network-card').boundingBox())!.width);
   await page.getByRole('button', { name: 'Hide graph', exact: true }).click();
   await expect(page.locator('.chat .msg')).toHaveCount(8);
-  await page.getByRole('button', { name: 'Replay with VETO' }).click();
+  await page.getByRole('button', { name: 'Replay with Chaser' }).click();
   await expect(page.locator('.chat-end')).toContainText('Attack stopped');
 });
 
@@ -108,7 +108,7 @@ for (const width of [390, 768, 1280]) test(`chat and optional graph fit ${width}
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('show/hide animates smoothly, survives interruption, and persists across VETO versions', async ({ page }) => {
+test('show/hide animates smoothly, survives interruption, and persists across Chaser versions', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/?view=demo');
   await page.getByRole('slider', { name: 'Replay position' }).fill('-1');
@@ -120,12 +120,12 @@ test('show/hide animates smoothly, survives interruption, and persists across VE
   await page.waitForTimeout(450);
   await expect(page.locator('.network-card')).toHaveCount(1);
   await expect(page.locator('.network-card')).toHaveAttribute('data-step', '0');
-  await page.getByRole('radio', { name: 'With VETO', exact: true }).click();
+  await page.getByRole('radio', { name: 'With Chaser', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Hide graph', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Inspect Judge', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Hide graph', exact: true }).click();
   await expect(page.locator('.network-card')).toHaveCount(0);
-  await page.getByRole('radio', { name: 'Without VETO', exact: true }).click();
+  await page.getByRole('radio', { name: 'Without Chaser', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Show graph', exact: true })).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('.network-card')).toHaveCount(0);
 });
@@ -150,7 +150,7 @@ for (const width of [1440, 390]) test(`opening and resizing comfortably fit ever
   await expect(page.locator('.react-flow__viewport')).toHaveAttribute('style', zoom!);
   await page.setViewportSize({ width: width === 1440 ? 1280 : 430, height: 844 });
   await expect.poll(fits).toBe(true);
-  await page.getByRole('radio', { name: 'Without VETO', exact: true }).click();
+  await page.getByRole('radio', { name: 'Without Chaser', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Hide graph', exact: true })).toBeVisible();
   await expect.poll(fits).toBe(true);
 });

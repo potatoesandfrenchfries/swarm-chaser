@@ -134,7 +134,7 @@ function EventPanel({ run, state, ev, goTo, select }: { run: Run; state: ReplayS
         </Section>
       )}
       {ev.verdict && (
-        <Section title="VETO’s verdict">
+        <Section title="Chaser’s verdict">
           <StatusTag status={ev.verdict} />
         </Section>
       )}

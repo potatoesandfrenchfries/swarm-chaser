@@ -11,7 +11,7 @@ const SHAPES = [
 /** How far down each shape's eyes sit; the triangle is narrow at the top, so its eyes go lower. */
 const EYE_DROP = [0, 7, 1, 0, 1];
 const COLORS = ['#e8509b', '#8b5cf6', '#e5484d', '#f07a2a', '#4fb3a3', '#3b82f6'];
-/** VETO's outline: a ghost with a flat foot, drawn in ink so it reads as the one watching. */
+/** Chaser's outline: a ghost with a flat foot, drawn in ink so it reads as the one watching. */
 const GHOST = 'M7 34C7 18 12 6 22 6C31 6 35 14 35 23C35 29 33 34 28 34Z';
 
 export function Avatar({ run, actorId, size = 42 }: { run: Run; actorId: string; size?: number }) {

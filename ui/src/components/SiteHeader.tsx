@@ -14,7 +14,7 @@ export function SiteHeader() {
     <header className="acad-header">
       <div className="acad-header__inner">
         <button type="button" className="acad-logo" onClick={() => dispatch({ type: 'view', view: 'home' })}>
-          VETO
+          Swarm Chaser
         </button>
         <nav className="acad-nav" aria-label="Pages">
           {PAGES.map((p) => (

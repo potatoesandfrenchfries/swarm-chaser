@@ -143,7 +143,7 @@ export function LandingView({ bundle }: { bundle: Bundle }) {
           <span className="acad-pill">Monitoring for AI agents</span>
           <h1>See what an AI agent does, and what it is thinking.</h1>
           <p className="acad-lead">
-            Agents now read files, send email and run commands for us. VETO watches each one from both sides and stops a
+            Agents now read files, send email and run commands for us. Chaser watches each one from both sides and stops a
             harmful action before it runs.
           </p>
         </section>

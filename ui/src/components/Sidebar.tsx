@@ -6,8 +6,8 @@ export function Sidebar() {
   const { state, dispatch } = useStore();
   return (
     <aside className="sidebar" aria-label="App">
-      <button type="button" className="wordmark" onClick={() => dispatch({ type: 'view', view: 'home' })} aria-label="VETO, home">
-        VETO
+      <button type="button" className="wordmark" onClick={() => dispatch({ type: 'view', view: 'home' })} aria-label="Swarm Chaser, home">
+        Swarm Chaser
       </button>
       <div className="side-stack">
         <button type="button" className="new-task-btn" aria-current={state.view === 'playground' ? 'page' : undefined} onClick={() => dispatch({ type: 'new-run' })}>

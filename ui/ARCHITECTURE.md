@@ -1,6 +1,6 @@
-# ARCHITECTURE: VETO UI
+# ARCHITECTURE: Swarm Chaser UI
 
-One canonical event model and one fold over it (`deriveState`). Two frames read it. The landing site (`LandingView`, `DemoView`, `ResultsView`, under `SiteHeader`) pitches the product; the dashboard (under `Sidebar`) is where a user sets up a run (`PlaygroundView`), watches it and reads what VETO decided (`RunView`, with its Chat, Log and Graph tabs), and sees every run at once (`OverviewView`). The Neo4j copy reads the same records and uses the same event schema. The presentation Demo explicitly opens the built-in synthetic fixture; dashboard runs keep their selected source.
+One canonical event model and one fold over it (`deriveState`). Two frames read it. The landing site (`LandingView`, `DemoView`, `ResultsView`, under `SiteHeader`) pitches the product; the dashboard (under `Sidebar`) is where a user sets up a run (`PlaygroundView`), watches it and reads what Chaser decided (`RunView`, with its Chat, Log and Graph tabs), and sees every run at once (`OverviewView`). The Neo4j copy reads the same records and uses the same event schema. The presentation Demo explicitly opens the built-in synthetic fixture; dashboard runs keep their selected source.
 
 ```
 data/synthetic/*.json ─┐                         ┌─ DemoView, ResultsView, RunView chat (claimMetrics, decisionOf)
@@ -124,13 +124,13 @@ Provenance is shown in the header, the Compare kicker, the inspector's run panel
 | Concern | Path |
 | --- | --- |
 | Canonical model, validation, replay, metrics, projection | `src/model/` (pure TypeScript, unit-tested in `model.test.ts`) |
-| What VETO decided per event (blocked, allowed, flagged, leaked) | `src/model/activity.ts` |
+| What Chaser decided per event (blocked, allowed, flagged, leaked) | `src/model/activity.ts` |
 | Reported results, probe scores per layer, attack types, sources | `src/model/results.ts`, `data/whitebox-probe.json` (from `scripts/whitebox-probe.py`) |
 | Shared state and URL sync | `src/state/` |
 | Sidebar, site header, chat message, avatars, inspector, glyphs | `src/components/` |
 | Views | `src/views/`: landing site `LandingView`, `DemoView`, `ResultsView`; dashboard `OverviewView`, `PlaygroundView` (set-up), `RunView` (header and tabs) with `ActivityView` (Log) and `ExplorerView` (Graph, lazy, Cytoscape) |
 | Starting tasks from the dashboard | `src/state/tasks.ts` (`useTasks`, `useStartRun`) |
-| Display names | Come from the bundle (`actor.name`: Agent 1–4, VETO). Nothing in code hard-codes the synthetic names |
+| Display names | Come from the bundle (`actor.name`: Agent 1–4, Chaser). Nothing in code hard-codes the synthetic names |
 | API, bundle registry, task runner, Neo4j adapter and loader | `server/` (runs inside the Vite dev and preview servers). `POST /api/tasks` replays a recorded run into `local/live/` until an agent runtime writes there instead. A run ends with an `{"type":"end"}` line; deleting its file cancels the replay |
 | End-to-end tests | `e2e/app.spec.ts` (Playwright, installed Chrome) |
 

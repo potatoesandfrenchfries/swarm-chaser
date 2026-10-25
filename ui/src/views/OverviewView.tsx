@@ -12,7 +12,7 @@ const PAGE = 5;
 /** Which alert stands for a run in the list: a leak matters more than a block, a block more than a flag. */
 const SEVERITY: Decision[] = ['leaked', 'blocked', 'flagged'];
 
-/** Every run on this server: does VETO stop the attacks, which runs need a look, and how each one ended. */
+/** Every run on this server: does Chaser stop the attacks, which runs need a look, and how each one ended. */
 export function OverviewView() {
   const { dispatch } = useStore();
   const { rows, error } = useRuns();
@@ -38,9 +38,9 @@ export function OverviewView() {
       <PageHead title="Overview" />
       {error && <p className="task-error">{error}</p>}
 
-      <section className="dash-kpis" aria-label="Does VETO work">
+      <section className="dash-kpis" aria-label="Does Chaser work">
         <div className="kpi kpi--good">
-          <span className="kpi-label">With VETO</span>
+          <span className="kpi-label">With Chaser</span>
           <strong>
             {on.hit}
             <small> of {on.of}</small>
@@ -48,7 +48,7 @@ export function OverviewView() {
           <span>attacks blocked</span>
         </div>
         <div className="kpi kpi--bad">
-          <span className="kpi-label">Without VETO</span>
+          <span className="kpi-label">Without Chaser</span>
           <strong>
             {off.hit}
             <small> of {off.of}</small>

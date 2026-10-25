@@ -128,7 +128,7 @@ function Verdict({ bundle, run, task, setup, start }: { bundle: Bundle; run: Run
   const block = step(m?.diverted[0]);
   // The one change worth trying next: protect a leak, unprotect a block, attack a normal day.
   const next = task && setup && (o.tone === 'bad' ? setupOf(task, true, true) : o.tone === 'good' ? setupOf(task, true, false) : setup.attack ? undefined : setupOf(task, true, false));
-  const nextLabel = o.tone === 'bad' ? 'Run again with VETO' : o.tone === 'good' ? 'Run again without VETO' : 'Now plant the attack';
+  const nextLabel = o.tone === 'bad' ? 'Run again with Chaser' : o.tone === 'good' ? 'Run again without Chaser' : 'Now plant the attack';
 
   return (
     <div className={`chat-end chat-end--${o.tone}`} role="status">

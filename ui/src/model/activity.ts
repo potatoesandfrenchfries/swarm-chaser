@@ -39,7 +39,7 @@ export function hasMonitor(run: Run): boolean {
   return run.actors.some((a) => a.kind === 'monitor');
 }
 
-/** Tool calls an agent made or asked the monitor to make: the actions VETO is there to judge. */
+/** Tool calls an agent made or asked the monitor to make: the actions Chaser is there to judge. */
 export function isToolCall(e: ReplayEvent): boolean {
   return Boolean(e.tool) && e.type !== 'read';
 }
