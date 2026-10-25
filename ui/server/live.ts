@@ -5,6 +5,7 @@ import type { ServerResponse } from 'node:http';
 import { SCHEMA, type Actor, type Bundle, type Claim, type Provenance, type RecordNode, type ReplayEvent, type Run } from '../src/model/types.ts';
 import { validateLiveBundle } from '../src/model/validate.ts';
 import { digestRun, type RunDigest } from '../src/model/activity.ts';
+import { UI_ROOT } from './bundles.ts';
 import { configured, loadBundle, type Neo4jEnv } from './neo4j.ts';
 
 /**
@@ -23,7 +24,6 @@ import { configured, loadBundle, type Neo4jEnv } from './neo4j.ts';
  * Events. When Neo4j is configured, each run is mirrored into the database as it grows.
  */
 
-const UI_ROOT = resolve(import.meta.dirname, '..');
 /**
  * Where runs are written. Without LIVE_DIR set, a host that cannot write the repo folder (a read-only
  * deploy) gets the temp folder, so starting a run still works; those runs last as long as the instance.
