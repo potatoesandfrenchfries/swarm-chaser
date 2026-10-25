@@ -17,7 +17,8 @@
     "neo4j:start": "node scripts/scratch-neo4j.mjs",
     "neo4j:stop": "node scripts/scratch-neo4j.mjs --stop",
     "neo4j:load": "node --env-file-if-exists=.env server/load-neo4j.ts",
-    "live:simulate": "node scripts/simulate-live.ts"
+    "live:simulate": "node scripts/simulate-live.ts",
+    "swarm:import": "node scripts/import-swarm.ts"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

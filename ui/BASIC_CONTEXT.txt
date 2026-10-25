@@ -1,0 +1,37 @@
+This is a monitoring platform for AI agents that watches each agent from two sides: what it does, and what it is thinking while it does it.
+
+Autonomous AI agents now read files, send email and run commands on our behalf, and they can be steered into causing harm or performing malicious acts. The project pairs two monitors. A black-box monitor judges an agent by its visible behaviour: its messages and tool calls. A white-box monitor reads the agent model's internal activations at every decision and flags the internal signature of malicious intent. Together they give operators a second, independent line of evidence, from inside the model, that a transcript alone cannot provide.
+
+Why we built it (This is our justification for the project, why it is important)
+AI agents are already being used to run attacks, and the evidence of intent is often invisible in what they output.
+
+AI-orchestrated attacks are here. 
+
+In November 2025, Anthropic reported disrupting the first documented AI-orchestrated cyber-espionage campaign. A state-sponsored group it tracks as GTG-1002 used an AI agent to carry out up to 90% of the intrusion work against technology firms and government agencies. The attackers got past the model's safeguards by telling it it was doing legitimate penetration testing. (eSecurity Planet summary, Anthropic report)
+In March 2021, attackers pushed two backdoor commits to PHP's official Git server under the names of PHP's creator and a core maintainer. Both carried the message "Fix typo". The visible record looked routine; the intent was remote code execution on any server running the code. A maintainer caught it within hours. (PHP.Watch)
+IBM's 2026 Cost of a Data Breach report puts the global average breach at $4.99 million (US: $11.5 million), up 12% in a year
+Image
+How it works
+Two independent machine learning models that monitory every agent: one from the outside, one from the inside.
+
+Black-box monitor: this observes what the agent does in its environment. It reads the agent's observable trajectory, its messages and tool calls, and scores how likely that trajectory is to be malicious. It was trained on published AI-safety datasets of agents pursuing hidden harmful side-tasks, SHADE-Arena and MRT. It works on any agent, including closed models behind an API.
+
+White-box monitor: this observes what the agent is thinking. It runs alongside an open-weight agent model and reads its internal activations at every decision step. A logistic-regression probe, trained on our own labelled dataset, turns those activations into a probability that the agent is acting with malicious intent. One probe is trained per agent model.
+
+Our Results
+On attack types it never saw in training, the white-box probe separated malicious from benign agent steps perfectly (AUC 1.00, 92% accuracy), while a classifier using only the agent's visible actions reached AUC 0.70.
+(we need to add a table here containing our official numbers and headline figures for different models)
+
+How did we build this?
+We used:
+Python (scikit-learn, NumPy, pandas, joblib, PyTorch) for the overarching pipeline, producing datasets, data analysis, visualisation
+Tiger Data
+TypeScript & React for the Frontend
+
+Our Sources
+• Disrupting the first reported AI-orchestrated cyber espionage campaign, Anthropic, November 2025
+• Inside the First AI-Driven Cyber Espionage Campaign, eSecurity Planet, 14 November 2025
+• git.php.net server compromised, PHP.Watch, March 2021
+• Space secrets leak disclosure, Hugging Face, 31 May 2024
+• IBM 2026 Cost of a Data Breach Report: Key Findings, eSecurity Planet, 30 July 2026
+• AgentHarm: A Benchmark for Measuring Harmfulness of LLM Agents, Andriushchenko et al., ICLR 2025
