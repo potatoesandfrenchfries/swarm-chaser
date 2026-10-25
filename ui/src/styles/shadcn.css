@@ -1,0 +1,23 @@
+/* Utilities only. No preflight, and no @layer, so these classes beat the plain `button` reset. */
+@import 'tailwindcss/theme.css';
+@import 'tailwindcss/utilities.css';
+
+@source '../';
+
+@theme inline {
+  --font-sans: 'Geist Variable', Geist, system-ui, sans-serif;
+  --color-background: #ffffff;
+  --color-foreground: #141413;
+  --color-primary: #0645b1;
+  --color-primary-foreground: #ffffff;
+  --color-accent: #f4f7fc;
+  --color-accent-foreground: #0645b1;
+  --color-muted-foreground: #494848;
+  --color-border: #dddde2;
+  --color-input: #dddde2;
+  --color-ring: #0645b1;
+  --color-card: #ffffff;
+  --color-card-foreground: #141413;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+}

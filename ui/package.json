@@ -1,0 +1,47 @@
+{
+  "name": "claim-spread-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Replay, compare and explore how claims spread between agents. Reads canonical replay bundles; Neo4j is optional and server-side only.",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4318 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4318 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "neo4j:start": "node scripts/scratch-neo4j.mjs",
+    "neo4j:stop": "node scripts/scratch-neo4j.mjs --stop",
+    "neo4j:load": "node --env-file-if-exists=.env server/load-neo4j.ts",
+    "live:simulate": "node scripts/simulate-live.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@radix-ui/react-slot": "^1.5.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cytoscape": "3.34.4",
+    "lucide-react": "^1.61.0",
+    "neo4j-driver": "6.2.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  }
+}
