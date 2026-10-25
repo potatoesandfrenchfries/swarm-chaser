@@ -3,8 +3,14 @@ import { join, resolve } from 'node:path';
 import type { Bundle, Provenance } from '../src/model/types.ts';
 import { validateBundle } from '../src/model/validate.ts';
 
-// Vercel bundles the server into one function, so a path beside this file no longer reaches data/. The copied files sit at the deployment root, which is the working directory.
-export const UI_ROOT = process.env.VERCEL ? process.cwd() : resolve(import.meta.dirname, '..');
+// Vercel bundles the server into one function, so a path beside this file no longer reaches data/. The copied files can sit at the working directory or one folder down when the repo root is the upload.
+function deploymentRoot(): string {
+  const source = resolve(import.meta.dirname, '..');
+  if (!process.env.VERCEL) return source;
+  const candidates = [process.cwd(), join(process.cwd(), 'ui'), source, resolve(source, '..'), '/var/task', '/var/task/ui'];
+  return candidates.find((dir) => existsSync(join(dir, 'data', 'synthetic'))) ?? process.cwd();
+}
+export const UI_ROOT = deploymentRoot();
 /** Committed, hand-written bundles. Always provenance "synthetic". */
 export const SYNTHETIC_DIR = join(UI_ROOT, 'data', 'synthetic');
 /**
