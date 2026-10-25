@@ -192,14 +192,18 @@ export function readUrl(search = location.search): UrlState {
 
 function writeUrl(s: AppState) {
   const p = new URLSearchParams();
-  p.set('view', s.view);
-  if (s.live) p.set('live', s.live.id);
-  else if (s.bundleId) p.set('bundle', s.bundleId);
-  if (s.runId) p.set('run', s.runId);
-  p.set('step', String(s.cursor + 1));
-  if (s.selection) p.set('sel', `${s.selection.kind}:${s.selection.id}`);
-  const next = `?${p.toString()}`;
-  if (next !== location.search) history.replaceState(null, '', next);
+  // The landing page is plain "/"; other pages name themselves, and only a run view says which run it shows.
+  // The step is left out so the address stays short; an old link that names one still opens there (see readUrl).
+  if (s.view !== 'home') p.set('view', s.view);
+  if (RUN_VIEWS.includes(s.view)) {
+    if (s.live) p.set('live', s.live.id);
+    else if (s.bundleId) p.set('bundle', s.bundleId);
+    if (s.runId) p.set('run', s.runId);
+    if (s.selection) p.set('sel', `${s.selection.kind}:${s.selection.id}`);
+  }
+  const query = p.toString();
+  const search = query ? `?${query}` : '';
+  if (search !== location.search) history.replaceState(null, '', `${location.pathname}${search}${location.hash}`);
 }
 
 // ---- provider ------------------------------------------------------------------------------------
@@ -278,7 +282,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (state.bundle) writeUrl(state);
-  }, [state.view, state.bundleId, state.runId, state.cursor, state.selection, state.bundle, state.live?.id]);
+  }, [state.view, state.bundleId, state.runId, state.selection, state.bundle, state.live?.id]);
 
   const value = useMemo(() => ({ state, dispatch }), [state]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
