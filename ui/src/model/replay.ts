@@ -17,9 +17,9 @@ export type Channel =
   | 'check'
   | 'intervene'
   | 'correct'
-  | 'submit' // an agent asks the Judge to carry out an action
-  | 'allow' // the Judge lets it through to the sandbox
-  | 'divert'; // the Judge sends it to the honeypot
+  | 'submit' // an agent asks VETO to carry out an action
+  | 'allow' // VETO lets it through to the sandbox
+  | 'divert'; // VETO sends it to the honeypot
 
 export interface NodeRef {
   kind: 'actor' | 'record';
@@ -126,7 +126,7 @@ export function channelOf(e: ReplayEvent, byId: Map<string, ReplayEvent>): Chann
   }
 }
 
-/** Events whose effect lands on a record: an agent's own action, or the Judge passing one on. */
+/** Events whose effect lands on a record: an agent's own action, or VETO passing one on. */
 export function writesRecord(e: ReplayEvent): boolean {
   return e.type === 'action' || e.type === 'allow' || e.type === 'divert';
 }
@@ -240,35 +240,4 @@ export function upstreamOf(run: Run, eventId: string): ReplayEvent[] {
     stack.push(...(byId.get(id)?.causes ?? []));
   }
   return run.events.filter((e) => seen.has(e.id));
-}
-
-export interface Chapter {
-  seq: number;
-  label: string;
-  tone: 'claim' | 'action' | 'contradicted' | 'supported' | 'unverifiable' | 'intervene' | 'correct';
-}
-
-/**
- * The moments a viewer most needs to find, for one claim: first said, first acted on, first checked,
- * monitor steps in, first corrected. Only moments that exist in the run are returned, in run order.
- */
-export function chaptersOf(run: Run, claimId: string | null): Chapter[] {
-  if (!claimId) return [];
-  const byId = new Map(run.events.map((e) => [e.id, e]));
-  const claim = run.claims.find((c) => c.id === claimId);
-  const about = run.events.filter((e) => e.claim === claimId);
-  const out: Chapter[] = [];
-  const origin = claim ? byId.get(claim.origin) : undefined;
-  if (origin) out.push({ seq: origin.seq, label: 'Claim first said', tone: 'claim' });
-  // The first time someone acts on it: directly, or by asking the Judge to.
-  const act = about.find((e) => (e.type === 'action' && !isCorrective(e, byId)) || e.type === 'submit');
-  if (act) out.push({ seq: act.seq, label: act.type === 'submit' ? 'Tries to act on it' : 'First action', tone: 'action' });
-  const check = about.find((e) => e.type === 'check' && e.verdict);
-  if (check?.verdict) out.push({ seq: check.seq, label: `Checked: ${check.verdict}`, tone: check.verdict });
-  const trapped = about.find((e) => e.type === 'divert');
-  if (trapped) out.push({ seq: trapped.seq, label: 'Sent to the honeypot', tone: 'contradicted' });
-  // An intervention and the correction it prompts read as one moment: the first of either.
-  const fix = about.find((e) => e.type === 'intervene' || e.type === 'correct');
-  if (fix) out.push({ seq: fix.seq, label: fix.type === 'intervene' ? `${run.actors.find((a) => a.id === fix.actor)?.name ?? 'Judge'} steps in` : 'First correction', tone: fix.type === 'intervene' ? 'intervene' : 'correct' });
-  return out.sort((a, b) => a.seq - b.seq);
 }

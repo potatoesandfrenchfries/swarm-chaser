@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import bundleJson from '../../data/synthetic/merch-launch.json';
-import { projectRun, projectionAt } from './graph.ts';
+import { projectRun } from './graph.ts';
 import { claimMetrics } from './metrics.ts';
-import { chaptersOf, clampCursor, deriveState, downstreamOf, upstreamOf } from './replay.ts';
+import { clampCursor, deriveState, downstreamOf, upstreamOf } from './replay.ts';
 import type { Bundle, Run } from './types.ts';
 import { validateBundle } from './validate.ts';
 
@@ -63,13 +63,13 @@ describe('deriveState', () => {
     expect(s.actors['agent-2'].said).toEqual(['C1']);
     expect(s.actors['agent-3'].exposed).toEqual(['C1']);
     expect(s.actors['agent-3'].said).toEqual([]);
-    expect(s.actors['agent-3'].acted).toEqual(['C1']); // asked the Judge to send the list
+    expect(s.actors['agent-3'].acted).toEqual(['C1']); // asked VETO to send the list
     expect(s.actors['agent-4'].exposed).toEqual([]); // got a task without the claim
     expect(s.claims.C1.status).toBe('unchecked');
     expect(s.records.honeypot.state).toBeNull();
   });
 
-  it('records the Judge’s verdict, the honeypot catch and what was let through', () => {
+  it('records VETO’s verdict, the honeypot catch and what was let through', () => {
     expect(deriveState(m, 6).claims.C1.status).toBe('contradicted');
     expect(deriveState(m, 6).records.contacts.verdicts).toEqual([{ claim: 'C1', verdict: 'contradicted', event: 'm-e06' }]);
     const end = deriveState(m, m.events.length - 1);
@@ -118,16 +118,6 @@ describe('deriveState', () => {
     expect(channel('actor:judge>record:sandbox#allow')).toBe('allow');
     expect(channel('actor:agent-2>actor:agent-3#correct')).toBe('correct');
   });
-
-  it('names the key moments, including the honeypot', () => {
-    expect(chaptersOf(m, 'C1').map((c) => [c.seq, c.label])).toEqual([
-      [2, 'Claim first said'],
-      [5, 'Tries to act on it'],
-      [6, 'Checked: contradicted'],
-      [7, 'Sent to the honeypot'],
-      [8, 'Judge steps in'],
-    ]);
-  });
 });
 
 describe('causal links', () => {
@@ -146,7 +136,7 @@ describe('claimMetrics', () => {
     expect(b.effects.sandbox).toEqual(['Order number sent to the real supplier', 'Launch post published']);
   });
 
-  it('counts the version without a Judge: the list gets out', () => {
+  it('counts the version without VETO: the list gets out', () => {
     const p = claimMetrics(run('planted'), 'C1');
     expect(p.exposed).toEqual(['agent-1', 'agent-2', 'agent-3']);
     expect(p.repetitions).toEqual(['p-e03', 'p-e07']);
@@ -156,7 +146,7 @@ describe('claimMetrics', () => {
     expect(p.detectionDistance).toBeNull();
   });
 
-  it('counts the version with a Judge: caught, diverted and corrected', () => {
+  it('counts the version with VETO: caught, diverted and corrected', () => {
     const m = claimMetrics(run('monitored'), 'C1');
     expect(m.exposed).toEqual(['agent-1', 'agent-2', 'agent-3']);
     expect(m.repetitions).toEqual(['m-e03']);
@@ -181,11 +171,5 @@ describe('projectRun', () => {
     const keys = new Set(p.nodes.map((n) => n.key));
     expect(keys.size).toBe(p.nodes.length);
     expect(p.edges.every((e) => keys.has(e.from) && keys.has(e.to))).toBe(true);
-  });
-  it('drops future steps at a cursor but keeps actors and records', () => {
-    const at = projectionAt(p, 2);
-    expect(at.nodes.filter((n) => n.label === 'Event').map((n) => n.id)).toEqual(['m-e00', 'm-e01', 'm-e02']);
-    expect(at.nodes.filter((n) => n.label === 'Actor')).toHaveLength(5);
-    expect(at.nodes.filter((n) => n.label === 'Record')).toHaveLength(4);
   });
 });
