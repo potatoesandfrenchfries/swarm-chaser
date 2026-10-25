@@ -31,7 +31,7 @@ venv/
 temps_ideas/repos/
 
 # hf-mount mountpoint
-local/
+# local/
 
 # test and lint output
 .coverage
