@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import type { ServerResponse } from 'node:http';
 import { SCHEMA, type Actor, type Bundle, type Claim, type Provenance, type RecordNode, type ReplayEvent, type Run } from '../src/model/types.ts';
 import { validateLiveBundle } from '../src/model/validate.ts';
+import { digestRun, type RunDigest } from '../src/model/activity.ts';
 import { configured, loadBundle, type Neo4jEnv } from './neo4j.ts';
 
 /**
@@ -12,6 +13,7 @@ import { configured, loadBundle, type Neo4jEnv } from './neo4j.ts';
  *    "run":{"id":…,"title":…,"condition":…,"notes":[…],"actors":[…],"records":[…],"claims":[…]}}
  *   {"type":"actor","actor":{…}} / {"type":"record","record":{…}} / {"type":"claim","claim":{…}}   added at any point
  *   {"type":"event","event":{…one ReplayEvent}}       seq must be the next number
+ *   {"type":"end"}                                     the run has finished; nothing follows
  *
  * Each item is nested under its own key, so an event's own "type" (read, claim, …) never collides with the line's.
  *
@@ -23,10 +25,18 @@ import { configured, loadBundle, type Neo4jEnv } from './neo4j.ts';
 const UI_ROOT = resolve(import.meta.dirname, '..');
 export const LIVE_DIR = resolve(process.env.LIVE_DIR ?? join(UI_ROOT, '..', 'local', 'live'));
 
+/** Which dashboard task and set-up started a run, so the dashboard can offer to rerun it with one thing changed. */
+export interface LiveTask {
+  id: string;
+  setup: string;
+}
+
 interface Parsed {
   bundle: Bundle | null;
   /** Lines rejected so far, with the reason, so a bad line is visible rather than silently dropped. */
   problems: string[];
+  ended: boolean;
+  task: LiveTask | null;
 }
 
 export interface LiveSummary {
@@ -36,6 +46,10 @@ export interface LiveSummary {
   events: number;
   updatedAt: string;
   problems: string[];
+  ended: boolean;
+  /** The run so far; its outcome is final only once the run has ended. */
+  digest: RunDigest | null;
+  task: LiveTask | null;
 }
 
 const safeId = (id: string) => /^[A-Za-z0-9._-]{1,80}$/.test(id);
@@ -55,6 +69,9 @@ export function listLive(): LiveSummary[] {
         events: p.bundle?.runs[0].events.length ?? 0,
         updatedAt: statSync(join(LIVE_DIR, f)).mtime.toISOString(),
         problems: p.problems,
+        ended: p.ended,
+        digest: p.bundle ? digestRun(p.bundle, p.bundle.runs[0]) : null,
+        task: p.task,
       };
     });
 }
@@ -63,6 +80,8 @@ export function listLive(): LiveSummary[] {
 export function parseLive(text: string, id: string): Parsed {
   const problems: string[] = [];
   let bundle: Bundle | null = null;
+  let ended = false;
+  let task: LiveTask | null = null;
   const lines = text.split('\n');
   lines.forEach((line, i) => {
     if (!line.trim()) return;
@@ -76,6 +95,8 @@ export function parseLive(text: string, id: string): Parsed {
     if (item.type === 'header') {
       const r = item.run as Run;
       const provenance = (item.provenance === 'synthetic' ? 'synthetic' : 'live') as Provenance;
+      const t = item.task as Partial<LiveTask> | undefined;
+      task = typeof t?.id === 'string' && typeof t?.setup === 'string' ? { id: t.id, setup: t.setup } : null;
       bundle = {
         schema: SCHEMA,
         id: `live-${id}`,
@@ -90,6 +111,10 @@ export function parseLive(text: string, id: string): Parsed {
     }
     if (!bundle) {
       problems.push(`Line ${i + 1} comes before the header.`);
+      return;
+    }
+    if (item.type === 'end') {
+      ended = true;
       return;
     }
     const b: Bundle = bundle;
@@ -114,7 +139,7 @@ export function parseLive(text: string, id: string): Parsed {
     if (bad.length) problems.push(`Line ${i + 1} refused: ${bad[0]}`);
     else bundle = candidate;
   });
-  return { bundle, problems };
+  return { bundle, problems, ended, task };
 }
 
 /** One watcher per file, shared by every browser watching it. */
@@ -123,7 +148,7 @@ class Tail {
   private poll: ReturnType<typeof setInterval> | null = null;
   private clients = new Set<ServerResponse>();
   private size = -1;
-  private last: Parsed = { bundle: null, problems: [] };
+  private last: Parsed = { bundle: null, problems: [], ended: false, task: null };
   private syncTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly id: string;
@@ -178,7 +203,7 @@ class Tail {
     const after = parsed.bundle?.runs[0];
     const targets = only ? [only] : [...this.clients];
     if (initial || shrank || !before || !after || after.id !== before.id || after.events.length < before.events.length) {
-      for (const c of targets) send(c, 'snapshot', { bundle: parsed.bundle, problems: parsed.problems });
+      for (const c of targets) send(c, 'snapshot', { bundle: parsed.bundle, problems: parsed.problems, ended: parsed.ended, task: parsed.task });
     } else {
       // Only what is new since the last push: added actors, records, claims, then events, in that order.
       const added = <T extends { id: string }>(xs: T[], ys: T[]) => ys.filter((y) => !xs.some((x) => x.id === y.id));
@@ -188,6 +213,7 @@ class Tail {
         for (const cl of added(before.claims, after.claims)) send(c, 'append', { type: 'claim', item: cl });
         for (const e of after.events.slice(before.events.length)) send(c, 'append', { type: 'event', item: e });
         for (const p of parsed.problems.slice(this.last.problems.length)) send(c, 'problem', { message: p });
+        if (parsed.ended && !this.last.ended) send(c, 'end', { reason: 'The run finished.' });
       }
     }
     if (!only) this.last = parsed;

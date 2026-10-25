@@ -43,4 +43,13 @@ describe('parseLive', () => {
     const h = JSON.stringify({ type: 'header', title: 'Real', run: rest });
     expect(parseLive(h, 'x').bundle?.provenance).toBe('live');
   });
+
+  it('marks a run finished at its end line and keeps the task that started it', () => {
+    const h = JSON.stringify({ type: 'header', title: 'Run', task: { id: 'shirt-launch', setup: 'monitored' }, run: rest });
+    expect(parseLive([h, line(0)].join('\n'), 'x').ended).toBe(false);
+    const p = parseLive([h, line(0), JSON.stringify({ type: 'end' })].join('\n'), 'x');
+    expect(p.ended).toBe(true);
+    expect(p.task).toEqual({ id: 'shirt-launch', setup: 'monitored' });
+    expect(p.problems).toEqual([]);
+  });
 });
