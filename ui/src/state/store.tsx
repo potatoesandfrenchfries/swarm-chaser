@@ -60,7 +60,8 @@ export type Action =
   | { type: 'live-status'; status: LiveState['status'] }
   | { type: 'live-neo4j'; state: LiveState['neo4j'] }
   | { type: 'live-problem'; message: string }
-  | { type: 'live-follow' };
+  | { type: 'live-follow' }
+  | { type: 'live-pause' };
 
 export function currentRun(s: Pick<AppState, 'bundle' | 'runId'>): Run | null {
   return s.bundle?.runs.find((r) => r.id === s.runId) ?? null;
@@ -108,11 +109,11 @@ export function reducer(s: AppState, a: Action): AppState {
       return moved({ ...s, runId: a.runId }, a.cursor ?? lastStep(s.bundle?.runs.find((r) => r.id === a.runId)), { selection: null });
     case 'seek': {
       const next = moved(s, a.cursor);
-      return s.live ? { ...next, live: { ...s.live, follow: next.cursor >= last } } : next;
+      return s.live ? { ...next, live: { ...s.live, follow: false } } : next;
     }
     case 'step': {
       const next = moved(s, s.cursor + a.delta);
-      return s.live ? { ...next, live: { ...s.live, follow: next.cursor >= last } } : next;
+      return s.live ? { ...next, live: { ...s.live, follow: false } } : next;
     }
     case 'select':
       return { ...s, selection: a.selection };
@@ -149,6 +150,8 @@ export function reducer(s: AppState, a: Action): AppState {
       return s.live ? { ...s, live: { ...s.live, neo4j: a.state } } : s;
     case 'live-problem':
       return s.live ? { ...s, live: { ...s.live, problems: [...s.live.problems, a.message] } } : s;
+    case 'live-pause':
+      return s.live ? { ...s, live: { ...s.live, follow: false } } : s;
     case 'live-follow':
       return s.live ? moved({ ...s, live: { ...s.live, follow: true } }, last) : s;
   }

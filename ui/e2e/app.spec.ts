@@ -225,6 +225,7 @@ test.describe('dashboard pages', () => {
     test.skip(Boolean(process.env.E2E_BASE_URL), 'only meaningful on a server without Neo4j');
     const errors = watchErrors(page);
     await page.goto(url('view=graph&run=monitored'));
+    await page.getByRole('button', { name: 'Data explorer', exact: true }).click();
     await expect(page.locator('.explorer-panel')).toHaveCount(0);
     await page.getByRole('button', { name: 'Controls' }).click();
     await expect(page.locator('.source')).toContainText('Neo4j offline');

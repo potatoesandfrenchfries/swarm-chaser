@@ -1,0 +1,64 @@
+/* The graph borrows the original chat's surfaces and controls; no separate visual theme. */
+.replay-provenance { font-size: 12.5px; font-weight: 400; color: var(--ink-muted); }
+.story:has(.has-network) { max-width: 1440px; }
+.replay-shell { min-width: 0; }
+.replay-workspace { display: grid; gap: var(--s5); grid-template-columns: minmax(0, 1fr); }
+.replay-workspace.has-network { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); }
+.replay-workspace > .chat { min-width: 0; }
+.replay-actions, .replay-playback, .graph-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.replay-actions .chip-btn { display: inline-flex; gap: 6px; align-items: center; }
+.replay-workspace .chat-head { flex-wrap: wrap; }
+.replay-workspace .chat-body { min-height: 0; }
+.replay-seek { display: flex; gap: 14px; align-items: center; margin-top: 12px; }
+.replay-seek > label:first-child { flex: 1; min-width: 0; }
+.replay-seek input { width: 100%; accent-color: var(--correction); cursor: pointer; }
+.replay-detail { margin-top: var(--s4); padding: var(--s4) var(--s5); }
+.replay-detail > header { display: flex; justify-content: space-between; margin-bottom: 12px; }
+.replay-detail > .inspector { position: static; width: auto; border: 0; box-shadow: none; }
+.network-node-detail h3 { margin: 8px 0; }
+.network-node-detail > p { color: var(--ink-muted); }
+.network-node-detail blockquote { margin: var(--s4) 0; }
+.network-node-detail ol { list-style: none; padding: 0; }
+.network-node-detail li button { display: flex; gap: 10px; padding: 8px 0; text-align: left; font-size: 13px; }
+.network-card { min-width: 0; }
+.flow-stage { position: relative; min-height: 0; }
+.flow-stage .react-flow { --xy-background-color: var(--surface); --xy-edge-stroke: var(--line-strong); }
+.flow-stage .react-flow__node-entity { border: 0; background: none; box-shadow: none; }
+.flow-stage .react-flow__handle { width: 1px; height: 1px; min-width: 0; min-height: 0; opacity: 0; pointer-events: none; }
+.flow-entity { display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; color: var(--ink); }
+.flow-entity button { max-width: 120px; }
+.flow-entity small { color: var(--ink-muted); }
+.flow-agent { width: 110px; }
+.flow-agent.is-active > .avatar { animation: avatar-in 420ms var(--ease-spring) both; }
+.flow-record { width: 126px; min-height: 80px; justify-content: center; }
+.flow-record > svg { color: var(--route-color); }
+.flow-record.is-active { border-color: var(--route-color); }
+.react-flow__node.selected .flow-entity { outline: 2px solid var(--focus); outline-offset: 5px; border-radius: 12px; }
+.tone-neutral { --route-color: var(--line-strong); }
+.tone-claim { --route-color: var(--claim); }
+.tone-judge { --route-color: var(--correction); }
+.tone-danger { --route-color: var(--contradicted); }
+.tone-safe { --route-color: var(--supported); }
+.flow-route { opacity: .25; transition: opacity 300ms; }
+.flow-route.is-current { opacity: 1; }
+.flow-route.is-topology { opacity: .35; }
+.flow-packet { animation: flow-packet-fade 1100ms linear both; }
+.graph-zoom { position: absolute; bottom: 12px; left: 12px; display: flex; gap: 4px; }
+.graph-zoom .chip-btn, .graph-tools .chip-btn { min-height: 32px; min-width: 32px; display: grid; place-items: center; background: var(--surface); }
+.network-caption { display: grid; gap: var(--s1); }
+.dashboard-network { height: 100%; overflow: auto; padding: 0 var(--gutter) var(--gutter); }
+.network-view-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.network-view-head p { margin: 0; }
+.network-view-head p span { display: none; }
+.dashboard-network .network-card, .dashboard-network .replay-workspace > .chat { height: 68dvh; min-height: 520px; }
+@keyframes flow-packet-fade { 0%, 90% { opacity: 1; } 100% { opacity: 0; } }
+@media (max-width: 1150px) { .dashboard-network .replay-workspace.has-network { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .replay-workspace.has-network { grid-template-columns: 1fr; } .network-card { height: 450px; min-height: 0; }  }
+@media (max-width: 600px) { .replay-actions { gap: 6px; } .network-card { height: 410px; } }
+@media (prefers-reduced-motion: reduce) { .replay-shell *, .replay-shell *::after { animation: none !important; transition: none !important; } }
+.flow-record strong { font-size: 13px; }
+/* Disclosure motion changes only transforms/opacity; the original card styles stay shared. */
+.replay-workspace { overflow-anchor: none; }
+.replay-workspace > .chat { position: relative; z-index: 1; }
+.flow-stage > .react-flow { opacity: 0; transition: opacity 180ms var(--ease-out); }
+.flow-stage[data-ready='true'] > .react-flow { opacity: 1; }

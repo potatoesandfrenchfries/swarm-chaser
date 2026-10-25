@@ -34,7 +34,7 @@ export function App() {
     return (
       <div className="acad-page">
         <SiteHeader />
-        {bundle ? state.view === 'home' ? <LandingView bundle={bundle} /> : state.view === 'demo' ? <DemoView bundle={bundle} /> : <ResultsView bundle={bundle} /> : <LoadState />}
+        {bundle ? state.view === 'home' ? <LandingView bundle={bundle} /> : state.view === 'demo' ? <DemoView bundle={syntheticBundle as Bundle} /> : <ResultsView bundle={bundle} /> : <LoadState />}
       </div>
     );
   }

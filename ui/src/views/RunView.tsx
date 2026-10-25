@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { ShieldCheck, TriangleAlert } from 'lucide-react';
 import type { TaskInfo } from '../../server/api.ts';
 import { ChatMessage } from '../components/ChatMessage.tsx';
@@ -13,7 +13,7 @@ import { useStore, type View } from '../state/store.tsx';
 import { setupOf, useStartRun, useTasks, type Setup, type StartRun } from '../state/tasks.ts';
 import { ActivityView } from './ActivityView.tsx';
 
-const ExplorerView = lazy(() => import('./ExplorerView.tsx'));
+import { NetworkView } from './NetworkView.tsx';
 
 const TABS: { view: View; label: string }[] = [
   { view: 'chat', label: 'Chat' },
@@ -59,9 +59,7 @@ export function RunView({ bundle, run }: { bundle: Bundle; run: Run }) {
         ) : state.view === 'activity' ? (
           <ActivityView bundle={bundle} run={run} />
         ) : (
-          <Suspense fallback={<div className="center-state">Preparing the graph…</div>}>
-            <ExplorerView bundle={bundle} run={run} />
-          </Suspense>
+          <NetworkView bundle={bundle} run={run} />
         )}
       </div>
     </main>

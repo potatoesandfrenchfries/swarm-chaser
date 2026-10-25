@@ -1,6 +1,8 @@
 # claim-spread UI
 
-Replay how a claim spreads between AI agents, what they do with it, and whether checking the evidence changes what happens next. It opens on a short landing page, then three views over one event model: **Story** (the replay, the centrepiece), **Compare** (no false note, false note without a Judge, false note with a Judge), and **Data** (the same records as a graph, from Neo4j when it is running). Agents are Agent 1–4; the only named role is the **Judge**, which checks what agents say against the records.
+The **Demo** opens as the original large, animated agent chat. **Show graph** adds a network alongside the conversation without restarting it. The optional graph uses the same avatars, cards and controls as the rest of the app. React Flow provides pan, zoom, fit, node dragging and keyboard navigation, constrained to the team's layout: sandbox left, agents central, Judge below, honeypot right.
+
+The dashboard offers run setup, an overview and each run's **Chat / Log / Graph** tabs. The Graph tab opens the same React Flow graph beside the original chat. Data explorer opens the Neo4j property graph, using the bundle when the database is offline.
 
 The bundled data is a **made-up example**, written by hand and labelled as such everywhere it appears. See `DEMO.md` for the walkthrough, `ARCHITECTURE.md` for the model and data flow, and `DESIGN.md` for the visual system.
 

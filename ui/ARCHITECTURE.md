@@ -1,6 +1,6 @@
 # ARCHITECTURE: VETO UI
 
-One canonical event model and one fold over it (`deriveState`). Two frames read it. The landing site (`LandingView`, `DemoView`, `ResultsView`, under `SiteHeader`) pitches the product; the dashboard (under `Sidebar`) is where a user sets up a run (`PlaygroundView`), watches it and reads what VETO decided (`RunView`, with its Chat, Log and Graph tabs), and sees every run at once (`OverviewView`). The Neo4j copy reads the same records; no view has its own dataset.
+One canonical event model and one fold over it (`deriveState`). Two frames read it. The landing site (`LandingView`, `DemoView`, `ResultsView`, under `SiteHeader`) pitches the product; the dashboard (under `Sidebar`) is where a user sets up a run (`PlaygroundView`), watches it and reads what VETO decided (`RunView`, with its Chat, Log and Graph tabs), and sees every run at once (`OverviewView`). The Neo4j copy reads the same records and uses the same event schema. The presentation Demo explicitly opens the built-in synthetic fixture; dashboard runs keep their selected source.
 
 ```
 data/synthetic/*.json ─┐                         ┌─ DemoView, ResultsView, RunView chat (claimMetrics, decisionOf)
@@ -60,7 +60,9 @@ Channels give each edge one meaning:
 
 Exposure is not belief: a target of a claim-carrying event is *exposed*; only the speaker *said* it.
 
-**State.** `store.tsx` holds one reducer: view, bundle, run, cursor, selection and the live connection. A run opens on its last step; selecting an event in the activity log or the inspector moves the cursor to it, and the arrow keys step it. The demo chat keeps its own clock and does not touch the store.
+**State.** `store.tsx` holds one reducer: view, bundle, run, cursor, selection and the live connection. A run opens on its last step; selecting an event in the activity log or the inspector moves the cursor to it, and the arrow keys step it. The Demo keeps one local replay cursor and timer independent of the dashboard store. The shared `NetworkReplay` renders the original chat and its optional `AgentNetwork` companion from `deriveState(run, cursor)`. Demo opens with the graph hidden; dashboard Graph opens it by default and supplies the URL/store cursor. Toggling the graph does not restart chat or playback. The original `ChatMessage` and `Avatar` components retain their existing CSS.
+
+`AgentNetwork` uses React Flow 12.12.0 for the viewport, native React nodes, selection, constrained dragging and keyboard navigation. `networkLayout` fixes the sandbox left, honeypot right, ID-sorted agent grid and Judge below. Extra entities add rows. `networkRoutes` computes deterministic obstacle-avoiding paths with rounded corners; React Flow supplies live routing while a node is dragged, then the structured route settles on release. User positions and zoom survive event updates; Reset layout restores anchors. Each event gets a finite, explicitly started SVG packet animation, cancelled when the event changes. Dashed edges mean monitoring topology; observed arrows only show applied events. Changing versions remounts the replay and cancels pending timers. Reduced motion removes travel and opens on the final state. Pausing live following keeps incoming records but holds both graph and chat at the inspected step; Follow latest resumes the stream.
 
 **URL.** `?view=home|demo|results|overview|playground|chat|activity|graph&bundle=&run=&live=&step=&sel=kind:id` mirrors the state (no `view` means the landing page), so a link reproduces the exact selection, and switching views keeps it.
 
@@ -135,6 +137,6 @@ Provenance is shown in the header, the Compare kicker, the inspector's run panel
 ## 7. Decisions
 
 - **Vite + React 19 + TypeScript, plain CSS tokens.** Tailwind utilities and one shadcn button are used on the landing site only; everything else reads the tokens in `src/styles/tokens.css`.
-- **Cytoscape for the explorer.** It needs zoom, pan and layouts over arbitrary graphs. Cytoscape is MIT; Neo4j NVL was rejected on the `graph-test` branch for its licence.
+- **React Flow for the shared agent graph; Cytoscape for the property explorer.** It needs zoom, pan and layouts over arbitrary graphs. Cytoscape is MIT; Neo4j NVL was rejected on the `graph-test` branch for its licence.
 - **API inside Vite.** One command serves the app, the API and Neo4j access, in dev and in `vite preview`. A separate backend would add a process without adding a capability.
 - **Fonts self-hosted** (`@fontsource-variable/*`) and brand marks self-hosted (`public/logos`, from thesvg.org), so the demo runs without network.
