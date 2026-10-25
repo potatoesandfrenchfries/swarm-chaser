@@ -1,6 +1,6 @@
 """Run one sandbox experiment: the agents and the whitebox probe inside Docker, the outside model out here.
 
-    PYTHONPATH=src uv run python -m sandbox.orchestrator tasks.json --work local/m9 --step 3 --build
+    PYTHONPATH=src uv run python -m sandbox.orchestrator tasks.json --work local/m9 --step 3 --layer 18 --build
 
     host (this file, src/sandbox/blackbox.py)                            container (whitebox/)
 

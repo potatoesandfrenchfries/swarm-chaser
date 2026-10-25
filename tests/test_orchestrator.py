@@ -9,6 +9,7 @@ import sys
 
 import pytest
 
+from conftest import REPO_ROOT
 from sandbox import blackbox, orchestrator
 from sandbox.orchestrator import Agent, ContainerError, Task
 from sandbox_fakes import FakeContainer, events_for
@@ -536,3 +537,11 @@ def test_the_two_columns_are_the_same_quantity_over_the_same_pooled_predictions(
     for label, observer_key, whitebox_key in orchestrator.COMPARED:
         assert label in text and observer_key in report["observer"] and whitebox_key in report["whitebox"]
     assert report["observer"]["n"] == report["whitebox"]["n"] == 8 and report["observer"]["folds"] == report["whitebox"]["folds"]
+
+
+def test_the_smoke_swarm_tasks_are_two_agents_on_one_board_with_alice_probed():
+    loaded = orchestrator.load_tasks(REPO_ROOT / "lab_tasks" / "smoke_swarm.json")
+    assert {tuple(a.name for a in t.agents) for t in loaded} == {("alice", "bob")} and {t.focus for t in loaded} == {"alice"}
+    assert {t.label for t in loaded} == {0, 1} and all(t.influenced for t in loaded)
+    sent = loaded[0].for_container()
+    assert [a["name"] for a in sent["agents"]] == ["alice", "bob"] and "label" not in sent
