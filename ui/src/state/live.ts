@@ -1,20 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
+import type { LiveSummary, LiveTask } from '../../server/live.ts';
 import type { Bundle } from '../model/types.ts';
 import { validateLiveBundle } from '../model/validate.ts';
 import { useStore } from './store.tsx';
 
-export interface LiveSource {
-  id: string;
-  title: string;
-  provenance: string;
-  events: number;
-  updatedAt: string;
-  problems: string[];
+/** A run with no new step for this long, and no end line, has stopped without finishing. */
+const STALE_MS = 60_000;
+
+/** Where a listed run stands, in the word the dashboard shows while it has no outcome. */
+export function runStatus(s: LiveSummary): 'ended' | 'Running' | 'Unfinished' {
+  if (s.ended) return 'ended';
+  return Date.now() - Date.parse(s.updatedAt) > STALE_MS ? 'Unfinished' : 'Running';
 }
 
 /** Live runs the server can see, refreshed every few seconds. */
 export function useLiveSources(intervalMs = 4000) {
-  const [sources, setSources] = useState<LiveSource[]>([]);
+  const [sources, setSources] = useState<LiveSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let stop = false;
@@ -22,7 +23,7 @@ export function useLiveSources(intervalMs = 4000) {
       try {
         const res = await fetch('/api/live');
         if (!res.ok) throw new Error();
-        const list = (await res.json()) as LiveSource[];
+        const list = (await res.json()) as LiveSummary[];
         if (!stop) {
           setSources(list);
           setError(null);
@@ -60,11 +61,11 @@ export function useLiveConnection() {
       quiet.current = window.setTimeout(() => dispatch({ type: 'live-status', status: 'quiet' }), QUIET_MS);
     };
     es.addEventListener('snapshot', (ev) => {
-      const { bundle, problems } = JSON.parse((ev as MessageEvent).data) as { bundle: Bundle | null; problems: string[] };
+      const { bundle, problems, ended, task } = JSON.parse((ev as MessageEvent).data) as { bundle: Bundle | null; problems: string[]; ended: boolean; task: LiveTask | null };
       if (!bundle) return dispatch({ type: 'live-problem', message: 'The live file has no valid header yet.' });
       const bad = validateLiveBundle(bundle);
       if (bad.length) return dispatch({ type: 'bundle-failed', error: `The live run failed validation: ${bad[0]}` });
-      dispatch({ type: 'live-snapshot', bundle, problems });
+      dispatch({ type: 'live-snapshot', bundle, problems, ended, task });
       touch();
     });
     es.addEventListener('append', (ev) => {

@@ -1,13 +1,18 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, useRef, type Dispatch, type ReactNode } from 'react';
 import type { BundleSummary } from '../../server/bundles.ts';
+import type { LiveTask } from '../../server/live.ts';
 import { clampCursor } from '../model/replay.ts';
 import type { Bundle, Run } from '../model/types.ts';
 import { validateBundle, validateLiveBundle } from '../model/validate.ts';
 
-/** Landing site pages: home, demo, results. Dashboard pages, behind the sidebar: overview, activity, graph. */
-export type View = 'home' | 'demo' | 'results' | 'overview' | 'activity' | 'graph';
+/**
+ * Landing site pages: home, demo, results. Dashboard pages, behind the sidebar: the overview, the
+ * set-up for a new run (playground), and one run seen three ways: as a chat, a log or a graph.
+ */
+export type View = 'home' | 'demo' | 'results' | 'overview' | 'playground' | 'chat' | 'activity' | 'graph';
 export const SITE_VIEWS: View[] = ['home', 'demo', 'results'];
-const VIEWS: View[] = [...SITE_VIEWS, 'overview', 'activity', 'graph'];
+export const RUN_VIEWS: View[] = ['chat', 'activity', 'graph'];
+const VIEWS: View[] = [...SITE_VIEWS, 'overview', 'playground', ...RUN_VIEWS];
 export type Selection = { kind: 'event' | 'actor' | 'record' | 'claim'; id: string };
 
 export interface AppState {
@@ -33,13 +38,15 @@ export interface LiveState {
   follow: boolean;
   problems: string[];
   neo4j: 'unknown' | 'synced' | 'failed';
+  /** The task and set-up that started this run, when the dashboard started it. */
+  task: LiveTask | null;
 }
 
 export type Action =
   | { type: 'view'; view: View }
   | { type: 'bundles'; list: BundleSummary[] }
   | { type: 'bundles-failed'; error: string }
-  | { type: 'open-bundle'; id: string }
+  | { type: 'open-bundle'; id: string; runId?: string }
   | { type: 'bundle-loaded'; bundle: Bundle; runId?: string | null; cursor?: number; fromUrl?: boolean }
   | { type: 'bundle-failed'; error: string }
   | { type: 'run'; runId: string; cursor?: number }
@@ -47,7 +54,8 @@ export type Action =
   | { type: 'step'; delta: number }
   | { type: 'select'; selection: Selection | null }
   | { type: 'open-live'; id: string }
-  | { type: 'live-snapshot'; bundle: Bundle; problems: string[] }
+  | { type: 'new-run' }
+  | { type: 'live-snapshot'; bundle: Bundle; problems: string[]; ended: boolean; task: LiveTask | null }
   | { type: 'live-append'; kind: 'event' | 'actor' | 'record' | 'claim'; item: unknown }
   | { type: 'live-status'; status: LiveState['status'] }
   | { type: 'live-neo4j'; state: LiveState['neo4j'] }
@@ -56,6 +64,13 @@ export type Action =
 
 export function currentRun(s: Pick<AppState, 'bundle' | 'runId'>): Run | null {
   return s.bundle?.runs.find((r) => r.id === s.runId) ?? null;
+}
+
+/** Stop watching a live run and go back to the recorded examples, which the landing pages and the set-up read. */
+function leaveLive(s: AppState): AppState {
+  if (!s.live) return s;
+  const example = s.bundles?.find((b) => !b.problems.length)?.id ?? null;
+  return { ...s, live: null, bundle: null, bundleId: example, runId: null, loading: Boolean(example), selection: null };
 }
 
 function moved(s: AppState, cursor: number, extra: Partial<AppState> = {}): AppState {
@@ -70,13 +85,17 @@ export function reducer(s: AppState, a: Action): AppState {
   const last = run ? run.events.length - 1 : -1;
   switch (a.type) {
     case 'view':
-      return { ...s, view: a.view };
+      return { ...(SITE_VIEWS.includes(a.view) || a.view === 'playground' ? leaveLive(s) : s), view: a.view };
     case 'bundles':
       return { ...s, bundles: a.list, listError: null };
     case 'bundles-failed':
       return { ...s, listError: a.error };
-    case 'open-bundle':
-      return { ...s, bundleId: a.id, loading: true, bundleError: null, live: null };
+    case 'open-bundle': {
+      const view = RUN_VIEWS.includes(s.view) || !a.runId ? s.view : 'chat';
+      // The bundle is already open: only the run changes.
+      if (!s.live && s.bundle?.id === a.id) return a.runId ? reducer({ ...s, view }, { type: 'run', runId: a.runId }) : { ...s, view };
+      return { ...s, view, bundleId: a.id, runId: a.runId ?? null, loading: true, bundleError: null, live: null };
+    }
     case 'bundle-loaded': {
       const runId = a.runId && a.bundle.runs.some((r) => r.id === a.runId) ? a.runId : defaultRun(a.bundle);
       const next = { ...s, bundle: a.bundle, bundleId: a.bundle.id, loading: false, bundleError: null, runId };
@@ -98,12 +117,14 @@ export function reducer(s: AppState, a: Action): AppState {
     case 'select':
       return { ...s, selection: a.selection };
     case 'open-live':
-      // A live run opens in the dashboard's activity log, which follows a growing run.
-      return { ...s, view: SITE_VIEWS.includes(s.view) ? 'activity' : s.view, loading: true, bundleError: null, selection: null, live: { id: a.id, status: 'connecting', follow: true, problems: [], neo4j: 'unknown' } };
+      // Drop whatever was open so the previous run never shows under the new run's name.
+      return { ...s, view: RUN_VIEWS.includes(s.view) ? s.view : 'chat', bundle: null, runId: null, loading: true, bundleError: null, selection: null, live: { id: a.id, status: 'connecting', follow: true, problems: [], neo4j: 'unknown', task: null } };
+    case 'new-run':
+      return { ...leaveLive(s), view: 'playground' };
     case 'live-snapshot': {
       if (!s.live) return s;
       const next = reducer({ ...s, live: null }, { type: 'bundle-loaded', bundle: a.bundle, runId: a.bundle.runs[0].id, cursor: a.bundle.runs[0].events.length - 1 });
-      return { ...next, live: { ...s.live, status: 'live', follow: true, problems: a.problems } };
+      return { ...next, live: { ...s.live, status: a.ended ? 'ended' : 'live', follow: true, problems: a.problems, task: a.task } };
     }
     case 'live-append': {
       if (!s.live || !s.bundle || !run) return s;
@@ -122,7 +143,8 @@ export function reducer(s: AppState, a: Action): AppState {
       return a.kind === 'event' && s.live.follow ? moved(next, r.events.length - 1) : next;
     }
     case 'live-status':
-      return s.live ? { ...s, live: { ...s.live, status: a.status } } : s;
+      // A finished run stays finished; a late "quiet" timer or reconnect must not reopen it.
+      return s.live && s.live.status !== 'ended' ? { ...s, live: { ...s.live, status: a.status } } : s;
     case 'live-neo4j':
       return s.live ? { ...s, live: { ...s.live, neo4j: a.state } } : s;
     case 'live-problem':
@@ -237,12 +259,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!state.loading || state.live || !state.bundleId || state.bundle?.id === state.bundleId) return;
     const ctrl = new AbortController();
     const id = state.bundleId;
+    const runId = state.runId;
     fetchBundle(id, ctrl.signal)
       .then((bundle) => {
         const url = firstUrl.current;
         firstUrl.current = null;
         const fromUrl = url && url.bundle === id;
-        dispatch({ type: 'bundle-loaded', bundle, runId: fromUrl ? url.run : null, cursor: fromUrl && url.step !== null ? url.step : undefined, fromUrl: Boolean(fromUrl) });
+        dispatch({ type: 'bundle-loaded', bundle, runId: fromUrl ? url.run : runId, cursor: fromUrl && url.step !== null ? url.step : undefined, fromUrl: Boolean(fromUrl) });
       })
       .catch((e) => {
         if (!ctrl.signal.aborted) dispatch({ type: 'bundle-failed', error: (e as Error).message });

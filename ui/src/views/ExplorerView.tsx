@@ -1,5 +1,5 @@
 import cytoscape, { type Core, type ElementDefinition } from 'cytoscape';
-import { Maximize } from 'lucide-react';
+import { Maximize, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Inspector } from '../components/Inspector.tsx';
 import { REL_TYPES, nodeKey, projectRun, type GNode, type Projection, type RelType } from '../model/graph.ts';
@@ -71,8 +71,10 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
   const { source, projection } = useGraphSource(bundle, run, retry, liveTick);
   const [types, setTypes] = useState<Set<RelType>>(() => new Set(REL_TYPES.filter((t) => t !== 'FIRST_STATED_IN')));
   const [search, setSearch] = useState('');
-  const [layout, setLayout] = useState<'lanes' | 'force'>('force');
+  const [layout, setLayout] = useState<'lanes' | 'force'>('lanes');
   const [trace, setTrace] = useState<{ dir: 'up' | 'down'; from: string } | null>(null);
+  // The controls stay folded away so the graph gets the room; they open on request.
+  const [controls, setControls] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const cy = useRef<Core | null>(null);
   const rs = useMemo(() => deriveState(run, state.cursor), [run, state.cursor]);
@@ -192,70 +194,78 @@ export default function ExplorerView({ bundle, run }: { bundle: Bundle; run: Run
 
   return (
     <main className="explorer">
-      <div className="explorer-canvas stage" ref={container} role="img" aria-label={`Graph of ${visible.nodes.length} nodes and ${visible.edges.length} relationships. The relationship list in the left panel gives keyboard access.`} />
-      <aside className="explorer-panel glass" aria-label="Graph controls">
-        <SourceBadge source={source} onRetry={() => setRetry((r) => r + 1)} />
-        <label className="search">
-          <span className="sr-only">Search the graph</span>
-          <input type="search" placeholder="Search names, text, ids" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </label>
-        <details className="rel-list">
-          <summary>Links shown</summary>
-          <fieldset>
-            {REL_TYPES.map((t) => (
-              <label key={t} className="check">
-                <input type="checkbox" checked={types.has(t)} onChange={() => toggleType(t)} />
-                <span>{REL_WORD[t]}</span>
-                <span className="count">{projection.edges.filter((e) => e.type === t).length}</span>
-              </label>
-            ))}
-          </fieldset>
-        </details>
-        <div className="explorer-row">
-          <label className="picker">
-            <span className="sr-only">Layout</span>
-            <select value={layout} onChange={(e) => setLayout(e.target.value as 'lanes' | 'force')}>
-              <option value="force">Free layout</option>
-              <option value="lanes">Timeline</option>
-            </select>
+      <div className="explorer-canvas stage" ref={container} role="img" aria-label={`Graph of ${visible.nodes.length} nodes and ${visible.edges.length} relationships. The relationship list under Controls gives keyboard access.`} />
+      <div className="explorer-tools">
+        <button type="button" className="chip-btn" aria-expanded={controls} onClick={() => setControls((c) => !c)}>
+          <SlidersHorizontal size={14} aria-hidden="true" />
+          Controls
+        </button>
+        <button type="button" className="chip-btn" aria-label="Fit graph to view" onClick={() => cy.current?.fit(undefined, 50)}>
+          <Maximize size={14} aria-hidden="true" />
+        </button>
+      </div>
+      {controls && (
+        <aside className="explorer-panel glass" aria-label="Graph controls">
+          <label className="search">
+            <span className="sr-only">Search the graph</span>
+            <input type="search" placeholder="Search names, text, ids" value={search} onChange={(e) => setSearch(e.target.value)} />
           </label>
-          <button type="button" className="icon-btn" aria-label="Fit graph to view" onClick={() => cy.current?.fit(undefined, 50)}>
-            <Maximize size={16} strokeWidth={1.7} aria-hidden="true" />
-          </button>
-        </div>
-        <div className="explorer-row">
-          <button type="button" className="btn btn--ghost btn--sm" disabled={!selectedEvent} onClick={() => selectedEvent && setTrace(trace?.dir === 'up' ? null : { dir: 'up', from: nodeKey(bundle.id, run.id, selectedEvent) })} aria-pressed={trace?.dir === 'up'}>
-            Causes
-          </button>
-          <button type="button" className="btn btn--ghost btn--sm" disabled={!selectedEvent} onClick={() => selectedEvent && setTrace(trace?.dir === 'down' ? null : { dir: 'down', from: nodeKey(bundle.id, run.id, selectedEvent) })} aria-pressed={trace?.dir === 'down'}>
-            Effects
-          </button>
-        </div>
-        <p className="muted small">
-          {visible.nodes.length} nodes · {visible.edges.length} links
-        </p>
-        <details className="rel-list">
-          <summary>All links ({visible.edges.length})</summary>
-          <ul>
-            {visible.edges.map((e, i) => {
-              const from = visible.nodes.find((n) => n.key === e.from);
-              const to = visible.nodes.find((n) => n.key === e.to);
-              return (
-                <li key={`${e.key}-${i}`}>
-                  <button type="button" className="text-btn" onClick={() => from && onTap.current(from)}>
-                    {from?.name}
-                  </button>{' '}
-                  <span className="muted">{e.type}</span>{' '}
-                  <button type="button" className="text-btn" onClick={() => to && onTap.current(to)}>
-                    {to?.name}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </details>
-      </aside>
-      <Inspector bundle={bundle} run={run} state={rs} className="explorer-inspector" />
+          <details className="rel-list">
+            <summary>Links shown</summary>
+            <fieldset>
+              {REL_TYPES.map((t) => (
+                <label key={t} className="check">
+                  <input type="checkbox" checked={types.has(t)} onChange={() => toggleType(t)} />
+                  <span>{REL_WORD[t]}</span>
+                  <span className="count">{projection.edges.filter((e) => e.type === t).length}</span>
+                </label>
+              ))}
+            </fieldset>
+          </details>
+          <div className="explorer-row">
+            <label className="picker">
+              <span className="sr-only">Layout</span>
+              <select value={layout} onChange={(e) => setLayout(e.target.value as 'lanes' | 'force')}>
+                <option value="lanes">Timeline</option>
+                <option value="force">Free layout</option>
+              </select>
+            </label>
+          </div>
+          <div className="explorer-row">
+            <button type="button" className="btn btn--ghost btn--sm" disabled={!selectedEvent} onClick={() => selectedEvent && setTrace(trace?.dir === 'up' ? null : { dir: 'up', from: nodeKey(bundle.id, run.id, selectedEvent) })} aria-pressed={trace?.dir === 'up'}>
+              Causes
+            </button>
+            <button type="button" className="btn btn--ghost btn--sm" disabled={!selectedEvent} onClick={() => selectedEvent && setTrace(trace?.dir === 'down' ? null : { dir: 'down', from: nodeKey(bundle.id, run.id, selectedEvent) })} aria-pressed={trace?.dir === 'down'}>
+              Effects
+            </button>
+          </div>
+          <p className="muted small">
+            {visible.nodes.length} nodes · {visible.edges.length} links
+          </p>
+          <details className="rel-list">
+            <summary>All links ({visible.edges.length})</summary>
+            <ul>
+              {visible.edges.map((e, i) => {
+                const from = visible.nodes.find((n) => n.key === e.from);
+                const to = visible.nodes.find((n) => n.key === e.to);
+                return (
+                  <li key={`${e.key}-${i}`}>
+                    <button type="button" className="text-btn" onClick={() => from && onTap.current(from)}>
+                      {from?.name}
+                    </button>{' '}
+                    <span className="muted">{e.type}</span>{' '}
+                    <button type="button" className="text-btn" onClick={() => to && onTap.current(to)}>
+                      {to?.name}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+          <SourceBadge source={source} onRetry={() => setRetry((r) => r + 1)} />
+        </aside>
+      )}
+      {state.selection && <Inspector bundle={bundle} run={run} state={rs} className="explorer-inspector" />}
     </main>
   );
 }

@@ -1,37 +1,29 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { useEffect } from 'react';
 import syntheticBundle from '../data/synthetic/merch-launch.json';
 import { SiteHeader } from './components/SiteHeader.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import type { Bundle } from './model/types.ts';
 import { useLiveConnection } from './state/live.ts';
 import { SITE_VIEWS, currentRun, useStore } from './state/store.tsx';
-import { ActivityView } from './views/ActivityView.tsx';
 import { DemoView } from './views/DemoView.tsx';
 import { LandingView } from './views/LandingView.tsx';
 import { OverviewView } from './views/OverviewView.tsx';
+import { PlaygroundView } from './views/PlaygroundView.tsx';
 import { ResultsView } from './views/ResultsView.tsx';
-
-const ExplorerView = lazy(() => import('./views/ExplorerView.tsx'));
+import { RunView } from './views/RunView.tsx';
 
 export function App() {
   const { state, dispatch } = useStore();
   useLiveConnection();
-  const run = currentRun(state);
   const bundle = state.bundle;
+  const run = currentRun(state);
   const viewRef = state.view;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target instanceof HTMLElement ? e.target : document.body;
-      if (e.altKey || e.ctrlKey || e.metaKey || t.closest('input, select, textarea, [contenteditable=true]')) return;
-      // Shortcuts belong to the dashboard; the landing site is read, not operated.
-      if (SITE_VIEWS.includes(viewRef)) return;
-      if (e.key === 'ArrowRight') dispatch({ type: 'step', delta: 1 });
-      else if (e.key === 'ArrowLeft') dispatch({ type: 'step', delta: -1 });
-      else if (e.key === 'Escape') dispatch({ type: 'select', selection: null });
-      else if (e.key === '1') dispatch({ type: 'view', view: 'overview' });
-      else if (e.key === '2') dispatch({ type: 'view', view: 'activity' });
-      else if (e.key === '3') dispatch({ type: 'view', view: 'graph' });
+      // The landing site is read, not operated; in the dashboard Escape closes a step's detail.
+      if (SITE_VIEWS.includes(viewRef) || e.key !== 'Escape') return;
+      dispatch({ type: 'select', selection: null });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -48,21 +40,9 @@ export function App() {
 
   return (
     <div className="shell">
-      <Sidebar bundle={bundle} />
+      <Sidebar />
       <div className="shell-main">
-        {bundle && run ? (
-          state.view === 'overview' ? (
-            <OverviewView bundle={bundle} />
-          ) : state.view === 'activity' ? (
-            <ActivityView bundle={bundle} run={run} />
-          ) : (
-            <Suspense fallback={<div className="center-state">Preparing the graph…</div>}>
-              <ExplorerView bundle={bundle} run={run} />
-            </Suspense>
-          )
-        ) : (
-          <LoadState />
-        )}
+        {state.view === 'overview' ? <OverviewView /> : state.view === 'playground' ? <PlaygroundView /> : bundle && run ? <RunView bundle={bundle} run={run} /> : <LoadState />}
       </div>
     </div>
   );

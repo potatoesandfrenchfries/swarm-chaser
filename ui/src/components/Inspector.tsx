@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { claimMetrics } from '../model/metrics.ts';
 import { carriesClaim, downstreamOf, type ReplayState } from '../model/replay.ts';
 import type { Bundle, EvidenceQuote, ReplayEvent, Run } from '../model/types.ts';
-import { BASIS_WORD, EVENT_WORD, PROVENANCE_NOTE, PROVENANCE_WORD, actorName, nodeName, vendorOf } from '../lib/words.ts';
+import { BASIS_WORD, PROVENANCE_NOTE, PROVENANCE_WORD, actorName, nodeName, vendorOf } from '../lib/words.ts';
 import { useStore, type Selection } from '../state/store.tsx';
 import { EventMark, StatusTag } from './Glyphs.tsx';
 
@@ -35,7 +35,7 @@ export function Inspector({ bundle, run, state, className = '' }: { bundle: Bund
         <span>{follow ? 'Latest step' : 'Selected'}</span>
         {!follow && (
           <button type="button" className="text-btn" onClick={() => dispatch({ type: 'select', selection: null })}>
-            Clear
+            Close
           </button>
         )}
       </div>
@@ -69,7 +69,6 @@ function EventLink({ run, e, onClick, cursor }: { run: Run; e: ReplayEvent; onCl
     <li>
       <button type="button" className={`event-link ${e.seq > cursor ? 'is-future' : ''}`} onClick={() => onClick(e)}>
         <span className="event-link-step">{e.seq + 1}</span>
-        <EventMark type={e.type} verdict={e.verdict} size={11} faint={e.seq > cursor} />
         <span>{e.summary}</span>
         {e.seq > cursor && <em>later</em>}
       </button>
@@ -110,10 +109,7 @@ function EventPanel({ run, state, ev, goTo, select }: { run: Run; state: ReplayS
   return (
     <>
       <div className="insp-title">
-        <EventMark type={ev.type} verdict={ev.verdict} size={14} />
-        <span>
-          {EVENT_WORD[ev.type]} <span className="muted">· step {ev.seq + 1}</span>
-        </span>
+        <span>Step {ev.seq + 1}</span>
       </div>
       <p className="insp-route">
         <button type="button" className="text-btn" onClick={() => select({ kind: 'actor', id: ev.actor })}>
@@ -158,7 +154,8 @@ function EventPanel({ run, state, ev, goTo, select }: { run: Run; state: ReplayS
           })}
         </Section>
       )}
-      {claim && (
+      {/* The claim is already marked inside the message; show it apart only when the message does not hold it. */}
+      {claim && !ev.text?.includes(claim.text) && (
         <Section title="The claim">
           <button type="button" className="claim-chip" onClick={() => select({ kind: 'claim', id: claim.id })}>
             <mark>{claim.text}</mark>
