@@ -9,10 +9,10 @@ import { validateBundle, validateLiveBundle } from '../model/validate.ts';
  * Landing site pages: home, demo, results. Dashboard pages, behind the sidebar: the overview, the
  * set-up for a new run (playground), and one run seen three ways: as a chat, a log or a graph.
  */
-export type View = 'home' | 'demo' | 'results' | 'overview' | 'playground' | 'chat' | 'activity' | 'graph';
+export type View = 'home' | 'demo' | 'results' | 'overview' | 'playground' | 'settings' | 'chat' | 'activity' | 'graph';
 export const SITE_VIEWS: View[] = ['home', 'demo', 'results'];
 export const RUN_VIEWS: View[] = ['chat', 'activity', 'graph'];
-const VIEWS: View[] = [...SITE_VIEWS, 'overview', 'playground', ...RUN_VIEWS];
+const VIEWS: View[] = [...SITE_VIEWS, 'overview', 'playground', 'settings', ...RUN_VIEWS];
 export type Selection = { kind: 'event' | 'actor' | 'record' | 'claim'; id: string };
 
 export interface AppState {

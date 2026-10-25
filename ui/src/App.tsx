@@ -10,6 +10,7 @@ import { LandingView } from './views/LandingView.tsx';
 import { OverviewView } from './views/OverviewView.tsx';
 import { PlaygroundView } from './views/PlaygroundView.tsx';
 import { ResultsView } from './views/ResultsView.tsx';
+import { SettingsView } from './views/SettingsView.tsx';
 import { RunView } from './views/RunView.tsx';
 
 export function App() {
@@ -42,7 +43,7 @@ export function App() {
     <div className="shell">
       <Sidebar />
       <div className="shell-main">
-        {state.view === 'overview' ? <OverviewView /> : state.view === 'playground' ? <PlaygroundView /> : bundle && run ? <RunView bundle={bundle} run={run} /> : <LoadState />}
+        {state.view === 'overview' ? <OverviewView /> : state.view === 'playground' ? <PlaygroundView /> : state.view === 'settings' ? <SettingsView /> : bundle && run ? <RunView bundle={bundle} run={run} /> : <LoadState />}
       </div>
     </div>
   );

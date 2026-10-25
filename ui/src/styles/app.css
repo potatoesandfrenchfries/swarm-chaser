@@ -53,13 +53,19 @@ mark {
   background: #fff; border-right: 1px solid var(--line); overflow-y: auto;
 }
 .wordmark { align-self: flex-start; padding: 4px 8px; font-weight: 700; font-size: 16px; letter-spacing: 0.1em; white-space: nowrap; border-radius: 8px; }
+.side-stack { display: grid; gap: 8px; }
 .side-nav { display: grid; gap: 2px; }
 .side-nav button {
   height: 38px; padding: 0 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px;
   font-size: 14px; font-weight: 500; color: var(--ink-muted); transition: background-color var(--dur-feedback), color var(--dur-feedback);
 }
 .side-nav button:hover { background: var(--bg-deep); color: var(--ink); }
-.side-nav button.is-active { background: var(--ink); color: #fff; }
+.side-nav button.is-active, .side-foot.is-active { background: var(--bg-deep); color: var(--ink); font-weight: 600; }
+.side-foot {
+  margin-top: auto; height: 38px; padding: 0 10px; border-radius: 10px; display: flex; align-items: center; gap: 10px;
+  font-size: 14px; font-weight: 500; color: var(--ink-muted);
+}
+.side-foot:hover { background: var(--bg-deep); color: var(--ink); }
 .new-task-btn {
   height: 40px; padding: 0 14px; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 8px;
   background: var(--correction); color: #fff; font-weight: 600; font-size: 14px;
@@ -75,7 +81,18 @@ mark {
 .task-dialog h2 { margin: 0; font-size: 18px; font-weight: 650; }
 .field { display: grid; gap: 6px; margin-top: 8px; }
 .field > span, .setups legend { font-size: 13px; font-weight: 600; color: var(--ink-muted); }
-.field select { height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: #fff; font-size: 14px; }
+.field select, .field input { height: 42px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-family: var(--font-ui); font-size: 14px; font-weight: 450; }
+.profile { gap: 22px; }
+.profile-id { display: flex; align-items: center; gap: 16px; }
+.profile-id strong { display: block; font-size: 22px; font-weight: 650; letter-spacing: -0.03em; }
+.profile-id span { font-size: 14px; color: var(--ink-muted); }
+.profile-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+.profile-fields .field:last-child { grid-column: 1 / -1; }
+.profile-avatar {
+  width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--correction-soft); color: var(--correction); font-size: 22px; font-weight: 650;
+}
+.profile .field span { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--ink-muted); }
 .field small { font-size: 13px; color: var(--ink-muted); }
 .setups { border: 0; margin: 18px 0 0; display: grid; gap: 8px; }
 .setups legend { margin-bottom: 8px; padding: 0; }
@@ -275,6 +292,7 @@ mark {
   .shell { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; border-right: 0; border-bottom: 1px solid var(--line); }
   .side-nav { display: flex; }
+  .side-foot { margin-top: 0; }
   .picker { flex: 1 1 160px; }
   .picker select { width: 100%; max-width: none; }
   .inspector-body { overflow: visible; }
@@ -481,6 +499,7 @@ mark {
 .hist-scale { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--font-ui); font-size: 12px; color: var(--ink-muted); }
 @media (max-width: 960px) {
   .dash-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .profile-fields { grid-template-columns: 1fr; }
   .dash-row, .run-grid { grid-template-columns: 1fr; }
 }
 
