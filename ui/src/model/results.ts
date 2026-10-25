@@ -53,17 +53,34 @@ export const DATASETS = [
   { name: 'AI Village', use: '192,167 messages from real agent teams' },
 ];
 
-export const STACK = [
-  { name: 'Python', detail: 'scikit-learn, NumPy, pandas, joblib, PyTorch' },
-  { name: 'Tiger Data', detail: 'Storage for runs and activations' },
-  { name: 'TypeScript & React', detail: 'This app' },
+/** Marks are theSVG slugs in ui/public/marks. Timescale is Tiger Data's previous name; theSVG still files the mark there. joblib has no mark. */
+export const STACK: { name: string; detail: string; marks: { file: string; label: string; wide?: boolean }[] }[] = [
+  {
+    name: 'Python',
+    detail: 'scikit-learn, NumPy, pandas, joblib, PyTorch',
+    marks: [
+      { file: 'python', label: 'Python' },
+      { file: 'numpy', label: 'NumPy' },
+      { file: 'pandas', label: 'pandas' },
+      { file: 'pytorch', label: 'PyTorch' },
+    ],
+  },
+  { name: 'Tiger Data', detail: 'Storage for runs and activations', marks: [{ file: 'timescale', label: 'Tiger Data' }] },
+  {
+    name: 'TypeScript & React',
+    detail: 'This app',
+    marks: [
+      { file: 'typescript', label: 'TypeScript' },
+      { file: 'react', label: 'React' },
+    ],
+  },
 ];
 
-export const SOURCES: { title: string; by: string; url?: string }[] = [
-  { title: 'Disrupting the first reported AI-orchestrated cyber espionage campaign', by: 'Anthropic, Nov 2025', url: 'https://www.anthropic.com/news/disrupting-AI-espionage' },
-  { title: 'Inside the First AI-Driven Cyber Espionage Campaign', by: 'eSecurity Planet, 14 Nov 2025' },
-  { title: 'git.php.net server compromised', by: 'PHP.Watch, Mar 2021', url: 'https://php.watch/news/2021/03/git-php-net-hack' },
-  { title: 'Space secrets leak disclosure', by: 'Hugging Face, 31 May 2024', url: 'https://huggingface.co/blog/space-secrets-disclosure' },
-  { title: 'IBM 2026 Cost of a Data Breach Report: Key Findings', by: 'eSecurity Planet, 30 Jul 2026' },
-  { title: 'AgentHarm: A Benchmark for Measuring Harmfulness of LLM Agents', by: 'Andriushchenko et al., ICLR 2025', url: 'https://arxiv.org/abs/2410.09024' },
+export const SOURCES: { title: string; by: string; url?: string; mark?: { file: string; label: string; wide?: boolean } }[] = [
+  { title: 'Disrupting the first reported AI-orchestrated cyber espionage campaign', by: 'Anthropic, Nov 2025', url: 'https://www.anthropic.com/news/disrupting-AI-espionage', mark: { file: 'anthropic', label: 'Anthropic' } },
+  { title: 'Inside the First AI-Driven Cyber Espionage Campaign', by: 'eSecurity Planet, 14 Nov 2025', url: 'https://www.esecurityplanet.com/fr/threats/inside-the-first-ai-driven-cyber-espionage-campaign/', mark: { file: 'esecurity.png', label: 'eSecurity Planet' } },
+  { title: 'git.php.net server compromised', by: 'PHP.Watch, Mar 2021', url: 'https://php.watch/news/2021/03/git-php-net-hack', mark: { file: 'php', label: 'PHP', wide: true } },
+  { title: 'Space secrets leak disclosure', by: 'Hugging Face, 31 May 2024', url: 'https://huggingface.co/blog/space-secrets-disclosure', mark: { file: 'hugging-face', label: 'Hugging Face' } },
+  { title: 'Cost of a Data Breach Report 2026', by: 'IBM and Ponemon Institute, 2026', url: 'https://www.ibm.com/reports/data-breach', mark: { file: 'ibm', label: 'IBM', wide: true } },
+  { title: 'AgentHarm: A Benchmark for Measuring Harmfulness of LLM Agents', by: 'Andriushchenko et al., ICLR 2025', url: 'https://arxiv.org/abs/2410.09024', mark: { file: 'arxiv', label: 'arXiv' } },
 ];
