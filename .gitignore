@@ -46,3 +46,4 @@ cache/
 
 # browser automation scratch output
 .playwright-mcp/
+.vercel
