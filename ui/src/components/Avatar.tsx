@@ -1,4 +1,10 @@
-import type { Run } from '../model/types.ts';
+import { Box, FileText, Archive } from 'lucide-react';
+import type { Run, RecordNode } from '../model/types.ts';
+
+/** The icon a record is drawn with wherever it appears, so the sandbox and honeypot look the same in every view. */
+export function recordIcon(record: RecordNode | null | undefined) {
+  return record?.kind === 'sandbox' ? Box : record?.kind === 'honeypot' ? Archive : FileText;
+}
 
 /** Soft blob outlines on a 40×40 grid; each agent gets one, so the cast is told apart by shape as well as colour. */
 const SHAPES = [

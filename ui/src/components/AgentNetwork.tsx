@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlow, BaseEdge, Handle, Position, getSmoothStepPath, useNodesState, type Node, type NodeProps, type Edge, type EdgeProps, type ReactFlowInstance } from '@xyflow/react';
-import { Box, FileText, Archive, Maximize, Minus, Plus, RotateCcw } from 'lucide-react';
-import { Avatar } from './Avatar.tsx';
+import { Maximize, Minus, Plus, RotateCcw } from 'lucide-react';
+import { Avatar, recordIcon } from './Avatar.tsx';
 import type { ReplayState, EdgeState } from '../model/replay.ts';
 import type { Run } from '../model/types.ts';
 import { networkLayout } from '../lib/networkLayout.ts';
@@ -19,7 +19,7 @@ const SIDES = { left: Position.Left, right: Position.Right, top: Position.Top, b
 function Entity({ data }: NodeProps<EntityNode>) {
   const actor = data.ref?.kind === 'actor';
   const record = data.ref?.kind === 'record' ? data.run.records.find((r) => r.id === data.ref!.id) : null;
-  const Icon = record?.kind === 'sandbox' ? Box : record?.kind === 'honeypot' ? Archive : FileText;
+  const Icon = recordIcon(record);
   return <div className={`flow-entity ${actor ? 'flow-agent' : 'attachment flow-record'} tone-${data.tone}${record?.planted ? ' attachment--planted' : ''}${data.active ? ' is-active' : ''}`}>
     {Object.entries(SIDES).map(([side, position]) => <Fragment key={side}><Handle type="source" id={`s-${side}`} position={position} /><Handle type="target" id={`t-${side}`} position={position} /></Fragment>)}
     {actor ? <Avatar run={data.run} actorId={data.ref!.id} /> : <Icon size={22} aria-hidden="true" />}

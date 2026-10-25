@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Run } from '../model/types.ts';
+import type { Run, RecordNode } from '../model/types.ts';
 import { useReducedMotion } from '../state/hooks.ts';
+import { Avatar, recordIcon } from './Avatar.tsx';
 
 const BLUE = '#0645b1';
 const RED = '#c8322b';
@@ -8,7 +9,7 @@ const CLAIM = '#e0b100';
 const TILT_COS = Math.cos(0.45);
 const TILT_SIN = Math.sin(0.45);
 
-type Node3 = { id: string; x: number; y: number; z: number; r: number; fill: string; label: string | null };
+type Node3 = { id: string; x: number; y: number; z: number; r: number; fill: string; label: string | null; actor?: boolean; record?: RecordNode };
 
 /** Places the run's actors, records and events in 3D: agents on a ring, records outside it, each event between its two ends. */
 function layout(run: Run): { nodes: Node3[]; links: [string, string][] } {
@@ -16,14 +17,14 @@ function layout(run: Run): { nodes: Node3[]; links: [string, string][] } {
   const agents = run.actors.filter((a) => a.kind === 'agent');
   agents.forEach((a, i) => {
     const t = (i / agents.length) * Math.PI * 2;
-    nodes.push({ id: a.id, x: Math.cos(t) * 0.75, y: 0.2, z: Math.sin(t) * 0.75, r: 12, fill: BLUE, label: a.name });
+    nodes.push({ id: a.id, x: Math.cos(t) * 0.75, y: 0.2, z: Math.sin(t) * 0.75, r: 12, fill: BLUE, label: null, actor: true });
   });
   run.actors.filter((a) => a.kind !== 'agent').forEach((a) => {
-    nodes.push({ id: a.id, x: 0, y: -0.75, z: 0, r: 15, fill: RED, label: a.name });
+    nodes.push({ id: a.id, x: 0, y: -0.75, z: 0, r: 15, fill: RED, label: a.name, actor: true });
   });
   run.records.forEach((rec, i) => {
     const t = (i / run.records.length) * Math.PI * 2 + 0.6;
-    nodes.push({ id: rec.id, x: Math.cos(t) * 1.15, y: 0.55 - (i % 2) * 0.7, z: Math.sin(t) * 1.15, r: 10, fill: rec.planted ? CLAIM : '#8a8a8f', label: rec.label });
+    nodes.push({ id: rec.id, x: Math.cos(t) * 1.15, y: 0.55 - (i % 2) * 0.7, z: Math.sin(t) * 1.15, r: 13, fill: rec.planted ? CLAIM : '#8a8a8f', label: rec.label, record: rec });
   });
   const at = new Map(nodes.map((n) => [n.id, n]));
   const links: [string, string][] = [];
@@ -36,6 +37,11 @@ function layout(run: Run): { nodes: Node3[]; links: [string, string][] } {
     links.push([a.id, e.id], [e.id, b.id]);
   }
   return { nodes, links };
+}
+
+function RecordGlyph({ record, x, y, size }: { record: RecordNode; x: number; y: number; size: number }) {
+  const Icon = recordIcon(record);
+  return <Icon x={x - size / 2} y={y - size / 2} width={size} height={size} color="#fff" strokeWidth={2.2} aria-hidden="true" />;
 }
 
 /** The run as a slowly turning property graph, drawn the way a Neo4j browser shows one. */
@@ -85,9 +91,16 @@ function RunGraph({ run }: { run: Run }) {
       })}
       {drawn.map((n) => (
         <g key={n.id} opacity={0.55 + 0.45 * Math.min(1, n.s)}>
-          <circle cx={n.px} cy={n.py} r={n.r * n.s} fill={n.fill} stroke="#fff" strokeWidth={1.5} />
+          {n.actor ? (
+            <g transform={`translate(${n.px - n.r * n.s * 1.4} ${n.py - n.r * n.s * 1.4})`}>
+              <Avatar run={run} actorId={n.id} size={n.r * n.s * 2.8} />
+            </g>
+          ) : (
+            <circle cx={n.px} cy={n.py} r={n.r * n.s} fill={n.fill} stroke="#fff" strokeWidth={1.5} />
+          )}
+          {n.record && <RecordGlyph record={n.record} x={n.px} y={n.py} size={n.r * n.s * 1.1} />}
           {n.label && (
-            <text x={n.px} y={n.py + n.r * n.s + 11} textAnchor="middle" className="collage-node-label">{n.label}</text>
+            <text x={n.px} y={n.py + n.r * n.s * (n.actor ? 1.4 : 1) + 11} textAnchor="middle" className="collage-node-label">{n.label}</text>
           )}
         </g>
       ))}
