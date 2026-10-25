@@ -47,8 +47,8 @@ export function App() {
   }, [dispatch, run, viewRef]);
 
   return (
-    <div className="app">
-      <TopBar bundle={bundle} />
+    <div className={state.view === 'home' ? 'app app--academia' : 'app'}>
+      {state.view !== 'home' && <TopBar bundle={bundle} />}
       {bundle && run ? (
         state.view === 'home' ? (
           <HomeView bundle={bundle} />
