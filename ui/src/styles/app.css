@@ -673,9 +673,13 @@ mark {
 .collage-tile--log { left: 4%; top: 56%; width: 29%; height: 32%; padding: 28px 12px 10px; }
 .collage-svg { display: block; width: 100%; height: 100%; }
 .collage-node-label { font-size: 10px; fill: var(--ink); }
-.collage-pulse {
-  stroke: var(--correction); stroke-width: 2.4; stroke-dasharray: 1; animation: acad-draw 3s ease-in-out infinite;
-}
+.collage-pulse { stroke: var(--correction); stroke-width: 2.4; stroke-dasharray: 1; }
+.collage-pulse--side { stroke-width: 1.2; opacity: .35; }
+/* One pass: each edge draws in after the layer before it, then fades. Durations and delays are set inline by NeuralNet. */
+.collage-pass .collage-pulse { stroke-dashoffset: 1; animation: collage-signal ease-out both; }
+.collage-pass .collage-lit { opacity: 0; animation: collage-light ease-out both; }
+@keyframes collage-signal { 0% { stroke-dashoffset: 1; } 15%, 80% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+@keyframes collage-light { 0% { opacity: 0; } 8%, 80% { opacity: 1; } 100% { opacity: 0; } }
 .collage-log {
   margin: 0; padding: 0; list-style: none; font-family: var(--font-mono); font-size: 11px; line-height: 1.7;
   color: var(--ink); white-space: nowrap; overflow: hidden;
@@ -683,7 +687,6 @@ mark {
 .collage-log span { color: var(--ink-muted); margin-right: 8px; }
 .collage-log .is-bad { color: var(--contradicted); background: #fdf0ef; }
 .collage-log b { font-weight: 600; }
-@media (prefers-reduced-motion: reduce) { .collage-pulse { animation: none; } }
 @media (max-width: 760px) {
   .collage { aspect-ratio: 4 / 5; }
   .collage-tile--net { left: 4%; top: 4%; width: 70%; height: 34%; }
@@ -761,9 +764,6 @@ mark {
 .acad-diagram .sys-block path { stroke: #fff; stroke-width: 2; stroke-linecap: round; }
 .acad-diagram .sys-block { transform-box: fill-box; transform-origin: center; animation: acad-pop 4s ease-in-out infinite; }
 @keyframes sys-flow { to { stroke-dashoffset: -1; } }
-@keyframes acad-draw {
-  0% { stroke-dashoffset: 1; } 45%, 85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 1; }
-}
 @keyframes acad-pop {
   0%, 30% { transform: scale(0); } 40%, 85% { transform: scale(1); } 100% { transform: scale(0); }
 }

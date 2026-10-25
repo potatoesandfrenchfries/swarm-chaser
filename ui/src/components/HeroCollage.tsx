@@ -108,13 +108,30 @@ function RunGraph({ run }: { run: Run }) {
   );
 }
 
-/** A small feed-forward net with one highlighted path, standing for the hidden-layer probe. */
+/** Hot node per layer for each forward pass the net cycles through. */
+const PASSES = [[2, 3, 4, 1], [0, 1, 2, 3], [4, 5, 3, 0], [1, 2, 6, 2], [3, 6, 1, 1]];
+/** One pass lasts PASS_MS; each layer starts LAYER_STEP seconds after the one before and stays lit for the rest of the pass. */
+const PASS_MS = 2400;
+const LAYER_STEP = 0.25;
+
+/** A small feed-forward net where signal runs through a new path every few seconds, standing for the hidden-layer probe. */
 function NeuralNet() {
+  const reduced = useReducedMotion();
+  const [pass, setPass] = useState(0);
   const layers = [5, 7, 7, 4];
   const pos = layers.map((n, li) => Array.from({ length: n }, (_, i) => ({ x: 40 + li * 100, y: 150 + (i - (n - 1) / 2) * 34 })));
-  const hot = [2, 3, 4, 1];
+  const hot = PASSES[pass % PASSES.length];
+
+  useEffect(() => {
+    if (reduced) return;
+    const id = setInterval(() => setPass((p) => p + 1), PASS_MS);
+    return () => clearInterval(id);
+  }, [reduced]);
+
+  const glow = PASS_MS / 1000 - (layers.length - 1) * LAYER_STEP;
+  const delay = (li: number) => ({ animationDelay: `${li * LAYER_STEP}s`, animationDuration: `${glow}s` });
   return (
-    <svg viewBox="0 0 380 300" className="collage-svg" role="img" aria-label="Neural network layers with one path lit up">
+    <svg viewBox="0 0 380 300" className="collage-svg" role="img" aria-label="Neural network layers with signal running through a lit path">
       {pos.slice(0, -1).map((col, li) =>
         col.flatMap((a, i) =>
           pos[li + 1].map((b, j) => (
@@ -122,16 +139,31 @@ function NeuralNet() {
           )),
         ),
       )}
-      {hot.slice(0, -1).map((i, li) => {
-        const a = pos[li][i];
-        const b = pos[li + 1][hot[li + 1]];
-        return <line key={`hot-${li}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="collage-pulse" pathLength={1} />;
-      })}
-      {pos.map((col, li) =>
-        col.map((p, i) => (
-          <circle key={`${li}-${i}`} cx={p.x} cy={p.y} r={9} fill={hot[li] === i ? BLUE : '#fff'} stroke={hot[li] === i ? BLUE : '#9a9aa2'} strokeWidth={1.2} />
-        )),
-      )}
+      {/* Keyed by pass so every pass restarts its animations from the first layer. */}
+      <g key={pass} className={reduced ? undefined : 'collage-pass'}>
+        {hot.slice(0, -1).map((i, li) => {
+          const a = pos[li][i];
+          // Weaker activations fan out to the hot node's neighbours in the next layer.
+          const side = [hot[li + 1] - 1, hot[li + 1] + 1].filter((j) => j >= 0 && j < layers[li + 1]);
+          return side.map((j) => {
+            const b = pos[li + 1][j];
+            return <line key={`side-${li}-${j}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="collage-pulse collage-pulse--side" pathLength={1} style={delay(li)} />;
+          });
+        })}
+        {hot.slice(0, -1).map((i, li) => {
+          const a = pos[li][i];
+          const b = pos[li + 1][hot[li + 1]];
+          return <line key={`hot-${li}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="collage-pulse" pathLength={1} style={delay(li)} />;
+        })}
+        {pos.map((col, li) =>
+          col.map((p, i) => (
+            <circle key={`${li}-${i}`} cx={p.x} cy={p.y} r={9} fill="#fff" stroke="#9a9aa2" strokeWidth={1.2} />
+          )),
+        )}
+        {hot.map((i, li) => (
+          <circle key={`lit-${li}`} cx={pos[li][i].x} cy={pos[li][i].y} r={9} fill={BLUE} className="collage-lit" style={delay(li)} />
+        ))}
+      </g>
     </svg>
   );
 }
