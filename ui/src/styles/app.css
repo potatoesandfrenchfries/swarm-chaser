@@ -50,11 +50,11 @@ mark {
 .app { min-height: 100dvh; position: relative; }
 .topbar {
   position: fixed; z-index: 30; top: 16px; left: var(--gutter); right: var(--gutter);
-  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; pointer-events: none;
+  display: flex; justify-content: center; align-items: flex-start; gap: 12px; pointer-events: none;
 }
 .topbar > * { pointer-events: auto; }
 .topbar-left { display: flex; align-items: center; gap: 18px; padding: 5px 5px 5px 18px; border-radius: 999px; }
-.wordmark { font-stretch: 125%; font-weight: 650; font-size: 15px; letter-spacing: 0.01em; white-space: nowrap; border-radius: 8px; }
+.wordmark { font-weight: 600; font-size: 15px; letter-spacing: -0.02em; white-space: nowrap; border-radius: 8px; }
 .views { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgb(0 0 0 / 0.28); }
 .views button {
   height: 34px; padding: 0 15px; border-radius: 999px; color: var(--ink-muted); font-weight: 500; font-size: 13.5px;
@@ -62,7 +62,7 @@ mark {
 }
 .views button:hover { color: var(--ink); }
 .views button.is-active { background: rgb(255 250 240 / 0.13); color: var(--ink); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08); }
-.topbar-right { display: flex; align-items: center; gap: 10px; padding: 5px 5px 5px 14px; border-radius: 999px; min-width: 0; }
+.topbar-right { position: absolute; right: 0; top: 0; display: flex; align-items: center; gap: 10px; padding: 5px 5px 5px 14px; border-radius: 999px; min-width: 0; }
 .provenance { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; white-space: nowrap; }
 .provenance i {
   width: 14px; height: 14px; border-radius: 3px; flex: none; border: 1px solid var(--ink-muted);
@@ -110,12 +110,12 @@ mark {
 .edge-group.is-off-focus .edge--claim { stroke: var(--ink-muted); stroke-width: 3; }
 
 /* rings: dashed = saw it, solid = said it, square = acted, blue = corrected */
-.ring { fill: none; transform-box: fill-box; transform-origin: center; animation: ring-in 320ms var(--ease-out) both; }
+.ring { fill: none; transform-box: fill-box; transform-origin: center; animation: ring-in 380ms var(--ease-spring) both; }
 .ring--said { stroke: var(--claim); stroke-width: 2.6; }
 .ring--exposed { stroke: var(--claim); stroke-width: 2; stroke-dasharray: 4 5; }
 .ring--corrected { stroke: var(--correction); stroke-width: 2.2; }
-.badge--acted { fill: var(--claim); transform-box: fill-box; transform-origin: center; animation: badge-in 280ms var(--ease-out) both; }
-.arrival-ripple { fill: none; stroke: var(--ripple); stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: ripple 1000ms var(--ease-out) forwards; }
+.badge--acted { fill: var(--claim); transform-box: fill-box; transform-origin: center; animation: badge-in 340ms var(--ease-spring) both; }
+.arrival-ripple { fill: none; stroke: var(--ripple); stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: ripple 900ms var(--ease-out) forwards; }
 .stage[data-animate='false'] .ring,
 .stage[data-animate='false'] .badge--acted,
 .stage[data-animate='false'] .record-state,
@@ -354,7 +354,7 @@ mark {
 @media (max-width: 999px) {
   .topbar { position: absolute; flex-direction: column; align-items: stretch; }
   .topbar-left { justify-content: space-between; }
-  .topbar-right { flex-wrap: wrap; border-radius: 18px; padding: 8px 10px; }
+  .topbar-right { position: static; flex-wrap: wrap; border-radius: 18px; padding: 8px 10px; }
   .provenance-note { display: none; }
   .picker { flex: 1 1 160px; }
   .picker select { width: 100%; max-width: none; }
