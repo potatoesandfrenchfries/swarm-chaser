@@ -1,10 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { getBundle, loadAll } from './bundles.ts';
-import { listLive, parseLive, streamLive, LIVE_DIR } from './live.ts';
+import { listLive, liveFile, parseLive, streamLive } from './live.ts';
 import { configured, readRun, status, type Neo4jEnv } from './neo4j.ts';
 import { streamRecordedRun } from './simulate.ts';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 
 type Next = (err?: unknown) => void;
 
@@ -79,7 +78,12 @@ export function apiMiddleware(env: Neo4jEnv) {
       const bundle = task && getBundle(task.bundle);
       if (!task || !setup || !bundle) return send(400, { error: 'Unknown task or set-up.' });
       const id = `${task.id}-${setup.id}-${Date.now()}`;
-      streamRecordedRun(bundle, setup.id, id, STEP_MS, undefined, { id: task.id, setup: setup.id }).catch(() => {});
+      try {
+        streamRecordedRun(bundle, setup.id, id, STEP_MS, undefined, { id: task.id, setup: setup.id }).catch(() => {});
+      } catch {
+        // Answering 202 here would send the dashboard to a run that does not exist.
+        return send(503, { error: 'The server could not write the run, so it was not started. Set LIVE_DIR to a writable folder.' });
+      }
       return send(202, { id });
     }
     if (req.method !== 'GET') return send(405, { error: 'Only tasks can be started; everything else is read-only.' });
@@ -101,8 +105,8 @@ export function apiMiddleware(env: Neo4jEnv) {
         return;
       }
       if (parts[1] === 'live' && parts.length === 3) {
-        const file = join(LIVE_DIR, `${parts[2]}.jsonl`);
-        if (!/^[A-Za-z0-9._-]{1,80}$/.test(parts[2]) || !existsSync(file)) return send(404, { error: 'No live run with that name.' });
+        const file = liveFile(parts[2]);
+        if (!file) return send(404, { error: 'No live run with that name.' });
         const p = parseLive(readFileSync(file, 'utf8'), parts[2]);
         return p.bundle ? send(200, { bundle: p.bundle, problems: p.problems }) : send(422, { error: 'The live file has no valid header yet.', problems: p.problems });
       }

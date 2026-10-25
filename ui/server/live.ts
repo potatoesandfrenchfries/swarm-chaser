@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, closeSync, watch, type FSWatcher } from 'node:fs';
+import { accessSync, constants, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, closeSync, watch, type FSWatcher } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { ServerResponse } from 'node:http';
 import { SCHEMA, type Actor, type Bundle, type Claim, type Provenance, type RecordNode, type ReplayEvent, type Run } from '../src/model/types.ts';
@@ -23,7 +24,29 @@ import { configured, loadBundle, type Neo4jEnv } from './neo4j.ts';
  */
 
 const UI_ROOT = resolve(import.meta.dirname, '..');
-export const LIVE_DIR = resolve(process.env.LIVE_DIR ?? join(UI_ROOT, '..', 'local', 'live'));
+/**
+ * Where runs are written. Without LIVE_DIR set, a host that cannot write the repo folder (a read-only
+ * deploy) gets the temp folder, so starting a run still works; those runs last as long as the instance.
+ */
+export const LIVE_DIR = process.env.LIVE_DIR ? resolve(process.env.LIVE_DIR) : writableOr(join(UI_ROOT, '..', 'local', 'live'), join(tmpdir(), 'claim-spread-live'));
+/** Committed runs, read-only, so a deploy shows them without local/. Real model output with no village text. */
+export const SAVED_DIR = join(UI_ROOT, 'data', 'runs');
+
+function writableOr(dir: string, fallback: string) {
+  try {
+    mkdirSync(dir, { recursive: true });
+    accessSync(dir, constants.W_OK);
+    return dir;
+  } catch {
+    return fallback;
+  }
+}
+
+/** The file holding a run: a run written here wins over a saved one with the same name. */
+export function liveFile(id: string): string | null {
+  if (!safeId(id)) return null;
+  return [LIVE_DIR, SAVED_DIR].map((d) => join(d, `${id}.jsonl`)).find((f) => existsSync(f)) ?? null;
+}
 
 /** Which dashboard task and set-up started a run, so the dashboard can offer to rerun it with one thing changed. */
 export interface LiveTask {
@@ -55,19 +78,18 @@ export interface LiveSummary {
 const safeId = (id: string) => /^[A-Za-z0-9._-]{1,80}$/.test(id);
 
 export function listLive(): LiveSummary[] {
-  if (!existsSync(LIVE_DIR)) return [];
-  return readdirSync(LIVE_DIR)
-    .filter((f) => f.endsWith('.jsonl'))
+  const ids = [LIVE_DIR, SAVED_DIR].flatMap((d) => (existsSync(d) ? readdirSync(d) : [])).filter((f) => f.endsWith('.jsonl')).map((f) => f.slice(0, -'.jsonl'.length));
+  return [...new Set(ids)]
     .sort()
-    .map((f) => {
-      const id = f.slice(0, -'.jsonl'.length);
-      const p = parseLive(readFileSync(join(LIVE_DIR, f), 'utf8'), id);
+    .map((id) => {
+      const file = liveFile(id)!;
+      const p = parseLive(readFileSync(file, 'utf8'), id);
       return {
         id,
         title: p.bundle?.title ?? id,
         provenance: p.bundle?.provenance ?? 'live',
         events: p.bundle?.runs[0].events.length ?? 0,
-        updatedAt: statSync(join(LIVE_DIR, f)).mtime.toISOString(),
+        updatedAt: statSync(file).mtime.toISOString(),
         problems: p.problems,
         ended: p.ended,
         digest: p.bundle ? digestRun(p.bundle, p.bundle.runs[0]) : null,
@@ -160,7 +182,7 @@ class Tail {
   }
 
   private get file() {
-    return join(LIVE_DIR, `${this.id}.jsonl`);
+    return liveFile(this.id) ?? join(LIVE_DIR, `${this.id}.jsonl`);
   }
 
   add(res: ServerResponse) {
@@ -258,10 +280,13 @@ function send(res: ServerResponse, event: string, data: unknown) {
 const tails = new Map<string, Tail>();
 
 export function streamLive(id: string, res: ServerResponse, env: Neo4jEnv): boolean {
-  if (!safeId(id) || !existsSync(join(LIVE_DIR, `${id}.jsonl`))) return false;
+  if (!liveFile(id)) return false;
   res.statusCode = 200;
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
+  // no-transform and X-Accel-Buffering stop proxies compressing or holding the stream, which would leave
+  // the dashboard waiting for a snapshot that never arrives.
+  res.setHeader('Cache-Control', 'no-store, no-transform');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.setHeader('Connection', 'keep-alive');
   res.write(': connected\n\n');
   const ping = setInterval(() => res.write(': ping\n\n'), 10_000);

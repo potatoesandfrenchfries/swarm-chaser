@@ -8,8 +8,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /**
  * Stream one recorded run into local/live/<name>.jsonl a step at a time, labelled as simulated, so the
  * live views can be exercised without agents. A real agent runtime writes the same lines to the same place.
+ * The header is written before this returns and throws if it cannot be, so a caller never reports a run
+ * that does not exist; the steps follow in the returned promise.
  */
-export async function streamRecordedRun(bundle: Bundle, runId: string, name: string, interval: number, log: (line: string) => void = () => {}, task: LiveTask | null = null) {
+export function streamRecordedRun(bundle: Bundle, runId: string, name: string, interval: number, log: (line: string) => void = () => {}, task: LiveTask | null = null): Promise<void> {
   const run = bundle.runs.find((r) => r.id === runId);
   if (!run) throw new Error(`No run ${runId}. Choose one of: ${bundle.runs.map((r) => r.id).join(', ')}`);
   ensureLiveDir();
@@ -27,6 +29,10 @@ export async function streamRecordedRun(bundle: Bundle, runId: string, name: str
   };
   writeFileSync(file, JSON.stringify(header) + '\n');
   log(`Streaming ${events.length} steps of "${run.title}" to ${file} (simulated).`);
+  return steps(file, events, interval, log);
+}
+
+async function steps(file: string, events: Bundle['runs'][number]['events'], interval: number, log: (line: string) => void) {
   for (const e of events) {
     await sleep(interval);
     // Deleting the file cancels the run; appending would recreate it without its header.

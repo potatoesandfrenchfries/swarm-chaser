@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import syntheticBundle from '../data/synthetic/merch-launch.json';
 import { SiteHeader } from './components/SiteHeader.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
@@ -53,6 +53,25 @@ export function App() {
 function LoadState() {
   const { state, dispatch } = useStore();
   const openSynthetic = () => dispatch({ type: 'bundle-loaded', bundle: syntheticBundle as Bundle });
+  const live = state.live;
+  // A live run that never sent its first snapshot: say why instead of loading forever.
+  const stuck = useStuck(Boolean(live && !state.bundle), 10_000);
+  if (live && !state.bundle && (live.status === 'lost' || live.problems.length || stuck)) {
+    return (
+      <div className="center-state" role="alert">
+        <h1>{live.status === 'lost' ? 'This run could not be opened.' : 'This run has not arrived yet.'}</h1>
+        <p>
+          {live.problems[0] ??
+            (live.status === 'lost'
+              ? `The server has no run called ${live.id}. A host that runs more than one copy of the server, or cannot keep files, can lose a run started here.`
+              : 'The server accepted the run but has sent none of it. A proxy in front of the server may be holding the stream back.')}
+        </p>
+        <button type="button" className="btn" onClick={() => dispatch({ type: 'new-run' })}>
+          Back to the playground
+        </button>
+      </div>
+    );
+  }
   if (state.listError || state.bundleError) {
     return (
       <div className="center-state" role="alert">
@@ -84,4 +103,16 @@ function LoadState() {
       <p>Loading the replay…</p>
     </div>
   );
+}
+
+/** True once `waiting` has held for `ms` without a break. */
+function useStuck(waiting: boolean, ms: number) {
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    setStuck(false);
+    if (!waiting) return;
+    const t = window.setTimeout(() => setStuck(true), ms);
+    return () => window.clearTimeout(t);
+  }, [waiting, ms]);
+  return stuck;
 }
