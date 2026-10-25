@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/banner.svg" alt="Swarm Chaser: a planted note passes from agent to agent until VETO blocks it" width="100%"></p>
+<p align="center"><img src="assets/banner.svg" alt="Swarm Chaser: a planted note passes from agent to agent until Chaser blocks it" width="100%"></p>
 
 # Swarm Chaser
 
@@ -11,7 +11,7 @@ repeated the claim and who corrected it.
 
 The second is a sandbox. We plant a false note in an agent's task and score whether the agent acts
 on it, with and without a second LLM watching from outside and stepping in. The web app calls that
-outside model VETO.
+outside model Chaser.
 
 The numbers end up on a static results page. The web app replays the sandbox runs.
 
@@ -115,7 +115,7 @@ when a prompt's text changes but its hash does not. To change a prompt, add a ne
 | `adapters/` | Code that reaches the network: vendor SDK transports, a small paid sample run, a Tiger Data export and a stress-test dataset fetch |
 | `whitebox/` | Container side of the sandbox: the agent loop, fake tools, activation capture and the probe classifier. It never imports from `src/` |
 | `lab_tasks/` | Supervisor nudges used by the sandbox |
-| `ui/` | VETO web app: landing site, run dashboard, live replay over SSE and an optional Neo4j graph. See `ui/ARCHITECTURE.md` |
+| `ui/` | The web app: landing site, run dashboard, live replay over SSE and an optional Neo4j graph. See `ui/ARCHITECTURE.md` |
 | `tests/` | pytest suite, including repo hygiene checks such as no committed databases |
 | `config.toml` | Model choices, prices, the spend cap and frozen prompt hashes |
 | `slice.toml` | Which village episodes the pipeline runs on |
