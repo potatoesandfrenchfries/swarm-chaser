@@ -1,7 +1,10 @@
 // Turn a swarm log (one JSON object per line, many runs keyed by run_id) into one live file per run in
 // local/live/, so each run shows on the dashboard. These are real model outputs, so provenance is "live".
 //
-//   npm run swarm:import -- "/path/to/swarm-log.jsonl"
+//   npm run swarm:import -- "/path/to/swarm-log.jsonl" [--prefix qwen] [--alice "Qwen2.5 3B"] [--bob "Qwen2.5 3B"] [--judge "Claude Sonnet 5.5"]
+//
+// --prefix keeps logs that reuse run ids (swarm-plain-0, …) from overwriting each other. With --judge the
+// influencer is shown as the Judge on that model; without it, as an unnamed Influencer.
 //
 // Mapping, since the swarm log and the replay model differ:
 //   tool_call read_file / list_files -> read      tool_call anything else -> action
@@ -10,6 +13,7 @@
 //   board                             -> repeat of that claim, or a new claim if the text is new
 //   reasoning                         -> the text of the same agent's next step
 //   probe                             -> not an event; the log carries no probe scores, only that one ran
+//   format_error                      -> not an event; noted on the run (the agent's reply could not be parsed)
 import { existsSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { Actor, Claim, RecordNode, ReplayEvent } from '../src/model/types.ts';
@@ -28,14 +32,21 @@ interface Row {
   timestamp: string;
 }
 
-const MODELS: Record<string, string> = { alice: 'Gemma 0.5B', bob: 'Gemma 2B' };
 const READ_TOOLS = new Set(['read_file', 'list_files']);
 
-const path = process.argv[2];
+const argv = process.argv.slice(2);
+const opt = (name: string) => {
+  const i = argv.indexOf(`--${name}`);
+  return i >= 0 ? argv[i + 1] : undefined;
+};
+const path = argv[0];
 if (!path || !existsSync(path)) {
-  console.error('Usage: npm run swarm:import -- <swarm-log.jsonl>');
+  console.error('Usage: npm run swarm:import -- <swarm-log.jsonl> [--prefix p] [--alice model] [--bob model] [--judge model]');
   process.exit(1);
 }
+const MODELS: Record<string, string> = { alice: opt('alice') ?? 'Gemma 0.5B', bob: opt('bob') ?? 'Gemma 2B' };
+const judge = opt('judge');
+const prefix = opt('prefix') ? `${opt('prefix')}-` : '';
 
 const rows: Row[] = readFileSync(path, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
 const byRun = new Map<string, Row[]>();
@@ -47,15 +58,17 @@ const utc = (ts: string) => `${ts}Z`;
 
 ensureLiveDir();
 let failed = false;
-for (const [runId, runRows] of byRun) {
+for (const [logId, runRows] of byRun) {
+  const runId = `${prefix}${logId}`;
   const task = runRows.find((r) => r.type === 'task');
-  const variant = runId.split('-')[1] ?? runId;
+  const variant = logId.split('-')[1] ?? logId;
   const actors: Actor[] = [];
   const records: RecordNode[] = [];
   const claims: Claim[] = [];
   const events: ReplayEvent[] = [];
   const pending = new Map<string, string>(); // agent -> reasoning waiting for its next step
   const probes: string[] = [];
+  const formatErrors: string[] = [];
 
   const actor = (id: string, a: Omit<Actor, 'id' | 'name'> & { name?: string }) => {
     if (!actors.some((x) => x.id === id)) actors.push({ id, name: a.name ?? name(id), kind: a.kind, model: a.model, role: a.role });
@@ -90,6 +103,11 @@ for (const [runId, runRows] of byRun) {
       probes.push(`${name(r.agent!)} step ${r.step}`);
       continue;
     }
+    if (r.type === 'format_error') {
+      formatErrors.push(`${name(r.agent!)} in round ${r.round}`);
+      pending.delete(r.agent!);
+      continue;
+    }
     if (r.type === 'reasoning') {
       pending.set(r.agent!, r.text ?? '');
       continue;
@@ -101,7 +119,7 @@ for (const [runId, runRows] of byRun) {
         const target = r.tool === 'read_file' ? record(`file:${args.path}`, String(args.path), 'document') : record('files', 'Project files', 'listing');
         push({ ts, type: 'read', actor: a, target: { kind: 'record', id: target }, claim: null, text: thought(a), summary: `${name(a)} ${r.tool === 'read_file' ? `reads ${args.path}` : 'lists the project files'}.`, tool: { name: r.tool!, args } }, r);
       } else {
-        const where = String(args.url ?? args.path ?? r.tool);
+        const where = String(args.url ?? args.path ?? args.command ?? r.tool);
         const target = record(`tool:${where}`, where, 'tool');
         push({ ts, type: 'action', actor: a, target: { kind: 'record', id: target }, claim: null, text: thought(a), summary: `${name(a)} calls ${r.tool} on ${where}.`, tool: { name: r.tool!, args } }, r);
       }
@@ -113,7 +131,9 @@ for (const [runId, runRows] of byRun) {
       continue;
     }
     if (r.type === 'influencer' || r.type === 'board') {
-      const a = r.type === 'influencer' ? actor('influencer', { kind: 'agent', model: null, role: 'Posts to both agents between rounds' }) : agent(r.agent!);
+      const a = r.type === 'influencer'
+        ? actor('influencer', judge ? { name: 'Judge', kind: 'agent', model: judge, role: 'Reviews the board and steers both agents between rounds' } : { kind: 'agent', model: null, role: 'Posts to both agents between rounds' })
+        : agent(r.agent!);
       const board = record('board', 'Shared board', 'message');
       const c = claimFor(r.text ?? '', `e${events.length}`);
       if (r.type === 'board') thought(a);
@@ -127,6 +147,7 @@ for (const [runId, runRows] of byRun) {
     `Task: ${task?.text ?? 'not in the log'}`,
     'Reasoning text is shown on the step the agent took next.',
     probes.length ? `The white-box probe ran at ${probes.join(', ')}; this log has no probe scores.` : 'No white-box probe steps in this log.',
+    ...(formatErrors.length ? [`Replies that could not be parsed, so no step is shown: ${formatErrors.join(', ')}.`] : []),
     'Times are read as UTC; the log does not say which zone.',
   ];
   const header = {
@@ -134,7 +155,7 @@ for (const [runId, runRows] of byRun) {
     schema: 'claim-spread/live@1',
     title: `${task?.text ?? runId} (${variant})`,
     provenance: 'live',
-    description: `Alice (${MODELS.alice}) and Bob (${MODELS.bob}), run ${runId}, prompt variant "${variant}".`,
+    description: `Alice (${MODELS.alice}) and Bob (${MODELS.bob})${judge ? `, steered by a Judge (${judge})` : ''}, run ${logId}, prompt variant "${variant}".`,
     source: basename(path),
     run: { id: runId, title: `${runId}: ${task?.text ?? ''}`, condition: null, notes, actors, records, claims },
   };
