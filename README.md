@@ -21,12 +21,14 @@ agree, and by checking that it finds failures already documented in the village.
 
 ## Contents
 
-- [Quick start](#quick-start)
-- [How it fits together](#how-it-fits-together)
-- [One claim, end to end](#one-claim-end-to-end)
-- [Folder map](#folder-map)
-- [Keys, data and spending](#keys-data-and-spending)
-- [Tests and CI](#tests-and-ci)
+- [Swarm Chaser](#swarm-chaser)
+  - [Contents](#contents)
+  - [Quick start](#quick-start)
+  - [How it fits together](#how-it-fits-together)
+  - [One claim, end to end](#one-claim-end-to-end)
+  - [Folder map](#folder-map)
+  - [Keys, data and spending](#keys-data-and-spending)
+  - [Tests and CI](#tests-and-ci)
 
 ## Quick start
 
@@ -73,6 +75,7 @@ PYTHONPATH=src uv run python -m report.build local/page_data.json local/site/ind
   sandbox/   outside model answers each round, scores      landing site, dashboard, run replay
 ```
 
+![architecture](image.png)
 All model calls go through `src/llm/client.py`. It caches every answer in `cache/llm.sqlite` and
 refuses any call that would exceed the spend cap. A rerun reads the cached answers, so it costs
 nothing and returns the same numbers.
