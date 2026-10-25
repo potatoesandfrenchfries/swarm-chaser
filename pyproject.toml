@@ -37,6 +37,9 @@ dependencies = [
     "tqdm",
 ]
 
+[project.optional-dependencies]
+tiger = ["psycopg[binary]"]   # adapters/tiger_export.py (Tiger Data / TimescaleDB)
+
 [dependency-groups]
 dev = [
     "pytest",
